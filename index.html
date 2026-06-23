@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRBP Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --border-light: #f0f1f3;
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-tertiary: #9ca3af;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-light: #eff6ff;
+    --danger: #dc2626;
+    --danger-light: #fef2f2;
+    --success: #059669;
+    --success-light: #ecfdf5;
+    --warning: #d97706;
+    --warning-light: #fffbeb;
+    --orange: #ea580c;
+    --orange-light: #fff7ed;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.03);
+    --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+  }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+
+  /* Auth */
+  .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 48px 40px; text-align: center; max-width: 400px; width: 100%; box-shadow: var(--shadow-md); }
+  .auth-card h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.5px; }
+  .auth-card .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 32px; }
+  .google-btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .google-btn:hover { border-color: #9ca3af; box-shadow: var(--shadow); }
+  .google-btn svg { width: 20px; height: 20px; }
+
+  /* App Shell */
+  .app { display: none; }
+  .app.active { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* Header */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+
+  /* Search Bar */
+  .search-container { position: relative; width: 320px; }
+  .search-input { width: 100%; padding: 8px 12px 8px 34px; font-size: 13px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; background: var(--bg); transition: all 0.15s; }
+  .search-input:focus { outline: none; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); font-size: 14px; pointer-events: none; }
+  .search-results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); max-height: 400px; overflow-y: auto; z-index: 300; display: none; }
+  .search-results.active { display: block; }
+  .search-result-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border-light); font-size: 13px; transition: background 0.1s; }
+  .search-result-item:hover { background: var(--bg); }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-type { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 3px; margin-right: 6px; }
+  .srt-task { background: var(--accent-light); color: var(--accent); }
+  .srt-decision { background: var(--purple-light); color: var(--purple); }
+  .srt-stakeholder { background: var(--success-light); color: var(--success); }
+  .search-result-title { font-weight: 500; }
+  .search-result-meta { color: var(--text-secondary); font-size: 11px; margin-top: 2px; }
+  .search-empty { padding: 20px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .user-name { font-size: 13px; color: var(--text-secondary); }
+  .sign-out-btn { font-size: 12px; color: var(--text-secondary); background: none; border: 1px solid var(--border); padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .sign-out-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; padding: 10px 24px 0; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; font-family: inherit; transition: all 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Main */
+  .main { flex: 1; padding: 20px 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Shared */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .section-header h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .section-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 13px; font-weight: 500; border-radius: 8px; border: none; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ghost { background: none; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: #9ca3af; }
+  .btn-danger { background: var(--danger-light); color: var(--danger); }
+  .btn-danger:hover { background: #fee2e2; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); transition: box-shadow 0.15s; }
+  .card:hover { box-shadow: var(--shadow); }
+
+  .badge { display: inline-block; padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .badge-overdue { background: var(--danger-light); color: var(--danger); }
+  .badge-today { background: var(--accent-light); color: var(--accent); }
+  .badge-waiting { background: var(--warning-light); color: var(--warning); }
+
+  .stakeholder-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; font-size: 11px; background: #f3f4f6; border-radius: 20px; color: var(--text-secondary); font-weight: 500; }
+
+  .overdue-row { border-left: 3px solid var(--danger) !important; background: #fffbfb !important; }
+
+  /* Floating Action Button */
+  .fab { position: fixed; bottom: 28px; right: 28px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #fff; border: none; font-size: 26px; font-weight: 300; cursor: pointer; box-shadow: 0 4px 14px rgba(37,99,235,0.35); z-index: 150; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+  .fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(37,99,235,0.45); }
+
+  /* ── Dashboard ── */
+  .dash-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .dash-card { padding: 18px; text-align: center; }
+  .dash-card .dash-number { font-size: 32px; font-weight: 700; letter-spacing: -1px; }
+  .dash-card .dash-label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-weight: 500; }
+  .dash-number.red { color: var(--danger); }
+  .dash-number.blue { color: var(--accent); }
+  .dash-number.orange { color: var(--warning); }
+  .dash-number.green { color: var(--success); }
+
+  .dash-section { margin-bottom: 24px; }
+  .dash-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .dash-list { display: flex; flex-direction: column; gap: 6px; }
+  .dash-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.1s; }
+  .dash-item:hover { border-color: #d1d5db; }
+  .dash-item.overdue { border-left: 3px solid var(--danger); }
+  .dash-item-title { font-weight: 500; flex: 1; }
+  .dash-item-meta { font-size: 11px; color: var(--text-secondary); }
+  .dash-empty { text-align: center; padding: 24px; color: var(--text-secondary); font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+
+  /* ── Modal ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; letter-spacing: -0.2px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: var(--text-secondary); }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; transition: border-color 0.15s; background: var(--surface); color: var(--text); }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+  .form-group textarea { resize: vertical; min-height: 70px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* ── Triage Grid ── */
+  .triage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .triage-quadrant { border-radius: var(--radius); padding: 14px; min-height: 180px; border: 1px solid var(--border); background: var(--surface); }
+  .triage-quadrant h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .q-do-now h3 { color: var(--danger); }
+  .q-schedule h3 { color: var(--accent); }
+  .q-delegate h3 { color: var(--warning); }
+  .q-defer h3 { color: var(--text-secondary); }
+
+  .triage-item { padding: 9px 11px; margin-bottom: 6px; background: var(--bg); border-radius: 8px; font-size: 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; cursor: pointer; transition: background 0.1s; }
+  .triage-item:hover { background: #eef0f2; }
+  .triage-item-title { font-weight: 500; flex: 1; }
+  .triage-item-stakeholders { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px; }
+  .triage-item-actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .triage-item-actions button { background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 4px; color: var(--text-tertiary); border-radius: 4px; }
+  .triage-item-actions button:hover { background: #e5e7eb; color: var(--text); }
+
+  /* ── Running Lists ── */
+  .lists-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .list-column { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; min-height: 280px; }
+  .list-column-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .list-column-header h3 { font-size: 13px; font-weight: 600; }
+  .list-count { font-size: 11px; background: #f3f4f6; padding: 2px 8px; border-radius: 10px; color: var(--text-secondary); font-weight: 600; }
+
+  .list-item { display: flex; align-items: flex-start; gap: 8px; padding: 9px; margin-bottom: 5px; background: var(--bg); border-radius: 8px; font-size: 13px; transition: background 0.1s; }
+  .list-item:hover { background: #eef0f2; }
+  .list-item-check { width: 17px; height: 17px; border: 2px solid var(--border); border-radius: 50%; cursor: pointer; flex-shrink: 0; margin-top: 1px; transition: all 0.15s; }
+  .list-item-check:hover { border-color: var(--accent); }
+  .list-item-check.done { background: var(--success); border-color: var(--success); }
+  .list-item-body { flex: 1; min-width: 0; cursor: pointer; }
+  .list-item-title { font-weight: 500; }
+  .list-item-title.done { text-decoration: line-through; color: var(--text-secondary); }
+  .list-item-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .list-item-move select { font-size: 11px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); font-family: inherit; cursor: pointer; }
+
+  /* ── Notes ── */
+  .notes-section { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .notes-section h4 { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+  .note-item { padding: 8px 10px; background: var(--bg); border-radius: 6px; margin-bottom: 6px; font-size: 12px; }
+  .note-item .note-date { font-size: 10px; color: var(--text-tertiary); margin-bottom: 2px; }
+  .note-item .note-text { color: var(--text); }
+  .note-add { display: flex; gap: 8px; margin-top: 8px; }
+  .note-add input { flex: 1; padding: 7px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; }
+  .note-add input:focus { outline: none; border-color: var(--accent); }
+  .note-add button { padding: 7px 12px; font-size: 12px; }
+
+  /* ── Decision Log ── */
+  .decision-list { display: flex; flex-direction: column; gap: 10px; }
+  .decision-card { padding: 18px; }
+  .decision-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .decision-issue { font-size: 15px; font-weight: 600; flex: 1; }
+  .decision-date { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .decision-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .decision-body strong { color: var(--text); font-weight: 600; }
+  .decision-stakeholders { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .decision-actions { margin-top: 10px; display: flex; gap: 8px; }
+
+  /* ── Weekly Review ── */
+  .review-container { max-width: 640px; }
+  .review-week-nav { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .review-week-nav h3 { font-size: 15px; font-weight: 600; }
+  .review-checklist { display: flex; flex-direction: column; gap: 4px; }
+  .review-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.1s; }
+  .review-item:hover { border-color: #d1d5db; }
+  .review-item input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+  .review-item label { font-size: 13px; cursor: pointer; flex: 1; }
+  .review-item.checked label { color: var(--text-secondary); text-decoration: line-through; }
+  .review-progress { margin-top: 16px; }
+  .review-progress-bar { height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+  .review-progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+  .review-progress-text { font-size: 12px; color: var(--text-secondary); margin-top: 5px; }
+
+  /* ── Stakeholders ── */
+  .stakeholder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .stakeholder-card { padding: 16px; cursor: pointer; }
+  .stakeholder-card h4 { font-size: 14px; font-weight: 600; }
+  .stakeholder-card .role { font-size: 12px; color: var(--text-secondary); }
+  .stakeholder-card .dept { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+  .stakeholder-card .contact { font-size: 12px; color: var(--accent); margin-top: 5px; }
+  .stakeholder-card .task-count { font-size: 11px; margin-top: 6px; color: var(--text-secondary); }
+
+  /* Stakeholder Detail Panel */
+  .stakeholder-detail { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .stakeholder-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .stakeholder-detail-header h3 { font-size: 16px; font-weight: 700; }
+  .stakeholder-detail-info { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+  .stakeholder-detail-section { margin-bottom: 16px; }
+  .stakeholder-detail-section h4 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-tertiary); margin-bottom: 8px; }
+  .stakeholder-detail-item { padding: 8px 12px; background: var(--bg); border-radius: 6px; margin-bottom: 4px; font-size: 13px; }
+
+  /* ── Empty States ── */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+  .empty-state .empty-icon { font-size: 32px; margin-bottom: 10px; }
+  .empty-state h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .empty-state p { font-size: 12px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .search-container { width: 100%; order: 3; }
+    .header h1 { font-size: 15px; }
+    .tabs { padding: 6px 14px 0; }
+    .tab { padding: 8px 10px; font-size: 12px; }
+    .main { padding: 14px; }
+    .triage-grid { grid-template-columns: 1fr; }
+    .lists-grid { grid-template-columns: 1fr; }
+    .dash-grid { grid-template-columns: repeat(2, 1fr); }
+    .user-name { display: none; }
+    .modal { padding: 18px; }
+    .section-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .form-row { grid-template-columns: 1fr; }
+    .fab { bottom: 20px; right: 20px; width: 48px; height: 48px; font-size: 24px; }
+  }
+
+  .loading { display: flex; align-items: center; justify-content: center; padding: 60px; }
+  .spinner { width: 22px; height: 22px; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Auth Screen -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <h1>HRBP Planner</h1>
+    <p class="subtitle">Triage · Track · Decide · Review</p>
+    <button class="google-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Sign in with Google
+    </button>
+  </div>
+</div>
+
+<!-- App -->
+<div class="app" id="app">
+  <header class="header">
+    <div class="header-left">
+      <h1>HRBP Planner</h1>
+    </div>
+    <div class="search-container">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" type="text" id="globalSearch" placeholder="Search tasks, decisions, stakeholders..." oninput="handleSearch(this.value)" onfocus="handleSearch(this.value)" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <div class="header-right">
+      <span class="user-name" id="userName"></span>
+      <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabsNav">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="triage">Triage</button>
+    <button class="tab" data-tab="lists">Lists</button>
+    <button class="tab" data-tab="decisions">Decisions</button>
+    <button class="tab" data-tab="review">Weekly Review</button>
+    <button class="tab" data-tab="stakeholders">Stakeholders</button>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="section-header">
+        <div><h2>Good morning</h2><p class="section-desc" id="dashDate"></p></div>
+      </div>
+      <div class="dash-grid" id="dashCards"></div>
+      <div class="dash-section" id="dashOverdue"></div>
+      <div class="dash-section" id="dashDoNow"></div>
+      <div class="dash-section" id="dashWaiting"></div>
+    </div>
+
+    <!-- TRIAGE -->
+    <div class="tab-content" id="tab-triage">
+      <div class="section-header">
+        <div><h2>Daily Triage</h2><p class="section-desc">Classify by urgency × impact. Start with "Do Now."</p></div>
+        <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
+      </div>
+      <div class="triage-grid">
+        <div class="triage-quadrant q-do-now" id="q-urgent-high"><h3>🔴 Do Now — Urgent + High Impact</h3><div class="quadrant-items"></div></div>
+        <div class="triage-quadrant q-delegate" id="q-urgent-low"><h3>🟡 Delegate — Urgent + Low Impact</h3><div class="quadrant-items"></div></div>
+        <div class="triage-quadrant q-schedule" id="q-noturgent-high"><h3>🔵 Schedule — Not Urgent + High Impact</h3><div class="quadrant-items"></div></div>
+        <div class="triage-quadrant q-defer" id="q-noturgent-low"><h3>⚪ Defer — Not Urgent + Low Impact</h3><div class="quadrant-items"></div></div>
+      </div>
+    </div>
+
+    <!-- RUNNING LISTS -->
+    <div class="tab-content" id="tab-lists">
+      <div class="section-header">
+        <div><h2>Running Lists</h2><p class="section-desc">Today · This Week · Waiting On</p></div>
+        <button class="btn btn-primary" onclick="openTaskModal('today')">+ Add Task</button>
+      </div>
+      <div class="lists-grid">
+        <div class="list-column" id="list-today"><div class="list-column-header"><h3>Today</h3><span class="list-count" id="count-today">0</span></div><div class="list-items"></div></div>
+        <div class="list-column" id="list-week"><div class="list-column-header"><h3>This Week</h3><span class="list-count" id="count-week">0</span></div><div class="list-items"></div></div>
+        <div class="list-column" id="list-waiting"><div class="list-column-header"><h3>Waiting On</h3><span class="list-count" id="count-waiting">0</span></div><div class="list-items"></div></div>
+      </div>
+    </div>
+
+    <!-- DECISIONS -->
+    <div class="tab-content" id="tab-decisions">
+      <div class="section-header">
+        <div><h2>Decision Log</h2><p class="section-desc">Record the what, why, and who.</p></div>
+        <button class="btn btn-primary" onclick="openDecisionModal()">+ Log Decision</button>
+      </div>
+      <div class="decision-list" id="decisionList"></div>
+    </div>
+
+    <!-- WEEKLY REVIEW -->
+    <div class="tab-content" id="tab-review">
+      <div class="section-header"><div><h2>Weekly Review</h2><p class="section-desc">Every Friday — clear the decks.</p></div></div>
+      <div class="review-container">
+        <div class="review-week-nav">
+          <button class="btn btn-ghost btn-sm" onclick="changeReviewWeek(-1)">←</button>
+          <h3 id="reviewWeekLabel"></h3>
+          <button class="btn btn-ghost btn-sm" onclick="changeReviewWeek(1)">→</button>
+        </div>
+        <div class="review-checklist" id="reviewChecklist"></div>
+        <div class="review-progress">
+          <div class="review-progress-bar"><div class="review-progress-fill" id="reviewProgressFill"></div></div>
+          <p class="review-progress-text" id="reviewProgressText"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAKEHOLDERS -->
+    <div class="tab-content" id="tab-stakeholders">
+      <div class="section-header">
+        <div><h2>Stakeholders</h2><p class="section-desc">Your working universe. Click a person to see everything linked.</p></div>
+        <button class="btn btn-primary" onclick="openStakeholderModal()">+ Add</button>
+      </div>
+      <div id="stakeholderDetailPanel" style="display:none;"></div>
+      <div class="stakeholder-grid" id="stakeholderGrid"></div>
+    </div>
+  </main>
+
+  <!-- Floating Add Button -->
+  <button class="fab" onclick="openTaskModal()" title="Quick add task">+</button>
+</div>
+
+<!-- ── Task Modal ── -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <h3 id="taskModalTitle">Add Task</h3>
+    <input type="hidden" id="taskEditId">
+    <div class="form-group">
+      <label>Task title</label>
+      <input type="text" id="taskTitle" placeholder="e.g. Prepare headcount report for Q3">
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <textarea id="taskDesc" placeholder="Context or details"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Urgency</label>
+        <select id="taskUrgency"><option value="urgent">Urgent</option><option value="not-urgent">Not Urgent</option></select>
+      </div>
+      <div class="form-group">
+        <label>Impact</label>
+        <select id="taskImpact"><option value="high">High Impact</option><option value="low">Low Impact</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>List</label>
+        <select id="taskList"><option value="today">Today</option><option value="week">This Week</option><option value="waiting">Waiting On</option></select>
+      </div>
+      <div class="form-group">
+        <label>Due date</label>
+        <input type="date" id="taskDue">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Recurrence</label>
+        <select id="taskRecurrence">
+          <option value="none">None</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Stakeholders</label>
+        <select id="taskStakeholders" multiple style="min-height:60px;"></select>
+      </div>
+    </div>
+    <!-- Notes section (visible only when editing) -->
+    <div id="taskNotesSection" style="display:none;">
+      <div class="notes-section">
+        <h4>Notes</h4>
+        <div id="taskNotesList"></div>
+        <div class="note-add">
+          <input type="text" id="taskNoteInput" placeholder="Add a note...">
+          <button class="btn btn-ghost btn-sm" onclick="addTaskNote()">Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-danger btn-sm" id="taskDeleteBtn" style="display:none;margin-right:auto;" onclick="deleteTaskFromModal()">Delete</button>
+      <button class="btn btn-ghost" onclick="closeModal('taskModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTask()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Decision Modal ── -->
+<div class="modal-overlay" id="decisionModal">
+  <div class="modal">
+    <h3>Log Decision</h3>
+    <input type="hidden" id="decisionEditId">
+    <div class="form-group"><label>Issue / Topic</label><input type="text" id="decisionIssue" placeholder="e.g. Transfer request from Plant 3"></div>
+    <div class="form-group"><label>Decision taken</label><textarea id="decisionText" placeholder="What was decided?"></textarea></div>
+    <div class="form-group"><label>Rationale</label><textarea id="decisionRationale" placeholder="Why this decision?"></textarea></div>
+    <div class="form-group"><label>Stakeholders involved</label><select id="decisionStakeholders" multiple style="min-height:70px;"></select></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('decisionModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDecision()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Stakeholder Modal ── -->
+<div class="modal-overlay" id="stakeholderModal">
+  <div class="modal">
+    <h3 id="stakeholderModalTitle">Add Stakeholder</h3>
+    <input type="hidden" id="stakeholderEditId">
+    <div class="form-group"><label>Name</label><input type="text" id="stakeholderName" placeholder="e.g. Rajesh Sharma"></div>
+    <div class="form-group"><label>Role / Designation</label><input type="text" id="stakeholderRole" placeholder="e.g. Plant Head - HRC"></div>
+    <div class="form-group"><label>Department</label><input type="text" id="stakeholderDept" placeholder="e.g. Operations"></div>
+    <div class="form-group"><label>Contact</label><input type="text" id="stakeholderContact" placeholder="Phone or email"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('stakeholderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStakeholder()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════
+// FIREBASE CONFIG
+// ═══════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyAkxKdxXqg7BblXI2aoHDANL6-XcuYXx8I",
+  authDomain: "tracker-d4753.firebaseapp.com",
+  projectId: "tracker-d4753",
+  storageBucket: "tracker-d4753.firebasestorage.app",
+  messagingSenderId: "8514001547",
+  appId: "1:8514001547:web:e17c3034f5fa399874928e"
+};
+
+let db, auth, currentUser;
+let tasksCache = [], decisionsCache = [], stakeholdersCache = [];
+let currentReviewWeekOffset = 0;
+
+// ── Init ──
+firebase.initializeApp(firebaseConfig);
+db = firebase.firestore();
+auth = firebase.auth();
+
+auth.onAuthStateChanged(user => {
+  if (user) { currentUser = user; showApp(user); loadAllData(); }
+  else { showAuth(); }
+});
+
+function showAuth() {
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('app').classList.remove('active');
+}
+function showApp(user) {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  document.getElementById('userName').textContent = user.displayName || user.email;
+}
+function signInWithGoogle() {
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => alert('Sign-in failed: ' + e.message));
+}
+function signOut() { auth.signOut(); }
+
+// ── Firestore Helpers ──
+function userCol(c) { return db.collection('users').doc(currentUser.uid).collection(c); }
+async function fsAdd(c, data) { const ref = await userCol(c).add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); return ref.id; }
+async function fsUpdate(c, id, data) { await userCol(c).doc(id).update(data); }
+async function fsDelete(c, id) { await userCol(c).doc(id).delete(); }
+async function fsGetAll(c) { const s = await userCol(c).orderBy('createdAt', 'desc').get(); return s.docs.map(d => ({ id: d.id, ...d.data() })); }
+
+async function loadAllData() {
+  try {
+    [tasksCache, decisionsCache, stakeholdersCache] = await Promise.all([fsGetAll('tasks'), fsGetAll('decisions'), fsGetAll('stakeholders')]);
+    // Check for recurring tasks that need generation
+    generateRecurringTasks();
+  } catch(e) { console.warn('Load error:', e); }
+  renderAll();
+}
+
+function renderAll() {
+  renderDashboard();
+  renderTriage();
+  renderLists();
+  renderDecisions();
+  renderReview();
+  renderStakeholders();
+  populateStakeholderSelects();
+}
+
+// ── Tabs ──
+document.getElementById('tabsNav').addEventListener('click', e => {
+  if (!e.target.classList.contains('tab')) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('tab-' + e.target.dataset.tab).classList.add('active');
+});
+
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === tabName); });
+  document.querySelectorAll('.tab-content').forEach(t => { t.classList.toggle('active', t.id === 'tab-' + tabName); });
+}
+
+// ── Modals ──
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(m => { m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }); });
+
+// ── Utility ──
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function getStakeholderName(id) { const s = stakeholdersCache.find(x => x.id === id); return s ? s.name : '?'; }
+function isOverdue(task) { if (!task.dueDate || task.done) return false; return task.dueDate < new Date().toISOString().split('T')[0]; }
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function formatDate(d) { if (!d) return ''; return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
+
+// ═══════════════════════════
+// SEARCH
+// ═══════════════════════════
+function handleSearch(query) {
+  const box = document.getElementById('searchResults');
+  if (!query || query.length < 2) { box.classList.remove('active'); return; }
+  const q = query.toLowerCase();
+  let results = [];
+
+  tasksCache.forEach(t => {
+    if ((t.title || '').toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+      results.push({ type: 'task', id: t.id, title: t.title, meta: t.list + (t.dueDate ? ' · Due ' + formatDate(t.dueDate) : ''), onclick: `editTask('${t.id}')` });
+  });
+  decisionsCache.forEach(d => {
+    if ((d.issue || '').toLowerCase().includes(q) || (d.decision || '').toLowerCase().includes(q) || (d.rationale || '').toLowerCase().includes(q))
+      results.push({ type: 'decision', id: d.id, title: d.issue, meta: d.date || '', onclick: `switchTab('decisions')` });
+  });
+  stakeholdersCache.forEach(s => {
+    if ((s.name || '').toLowerCase().includes(q) || (s.role || '').toLowerCase().includes(q) || (s.department || '').toLowerCase().includes(q))
+      results.push({ type: 'stakeholder', id: s.id, title: s.name, meta: [s.role, s.department].filter(Boolean).join(' · '), onclick: `showStakeholderDetail('${s.id}')` });
+  });
+
+  if (results.length === 0) {
+    box.innerHTML = '<div class="search-empty">No results found</div>';
+  } else {
+    box.innerHTML = results.slice(0, 12).map(r => `
+      <div class="search-result-item" onclick="${r.onclick}; document.getElementById('searchResults').classList.remove('active'); document.getElementById('globalSearch').value='';">
+        <span class="search-result-type srt-${r.type}">${r.type}</span>
+        <span class="search-result-title">${esc(r.title)}</span>
+        <div class="search-result-meta">${esc(r.meta)}</div>
+      </div>
+    `).join('');
+  }
+  box.classList.add('active');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-container')) document.getElementById('searchResults').classList.remove('active');
+});
+
+// ═══════════════════════════
+// DASHBOARD
+// ═══════════════════════════
+function renderDashboard() {
+  const today = todayStr();
+  const active = tasksCache.filter(t => !t.done);
+  const overdue = active.filter(t => isOverdue(t));
+  const doNow = active.filter(t => t.urgency === 'urgent' && t.impact === 'high');
+  const waitingOld = active.filter(t => {
+    if (t.list !== 'waiting') return false;
+    if (!t.createdAt) return false;
+    const created = t.createdAt.toDate ? t.createdAt.toDate() : new Date(t.createdAt);
+    return (Date.now() - created.getTime()) > 3 * 24 * 60 * 60 * 1000;
+  });
+  const todayTasks = active.filter(t => t.list === 'today');
+
+  // Greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.querySelector('#tab-dashboard .section-header h2').textContent = greeting;
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Summary cards
+  document.getElementById('dashCards').innerHTML = `
+    <div class="card dash-card"><div class="dash-number red">${overdue.length}</div><div class="dash-label">Overdue</div></div>
+    <div class="card dash-card"><div class="dash-number blue">${todayTasks.length}</div><div class="dash-label">Today</div></div>
+    <div class="card dash-card"><div class="dash-number orange">${doNow.length}</div><div class="dash-label">Do Now</div></div>
+    <div class="card dash-card"><div class="dash-number green">${active.length}</div><div class="dash-label">Active Total</div></div>
+  `;
+
+  // Overdue section
+  const overdueEl = document.getElementById('dashOverdue');
+  if (overdue.length > 0) {
+    overdueEl.innerHTML = `<h3>🔴 Overdue Tasks</h3><div class="dash-list">${overdue.map(t => `
+      <div class="dash-item overdue" onclick="editTask('${t.id}')">
+        <span class="dash-item-title">${esc(t.title)}</span>
+        <span class="dash-item-meta">Due ${formatDate(t.dueDate)}</span>
+      </div>`).join('')}</div>`;
+  } else { overdueEl.innerHTML = ''; }
+
+  // Do Now section
+  const doNowEl = document.getElementById('dashDoNow');
+  if (doNow.length > 0) {
+    doNowEl.innerHTML = `<h3>🔥 Do Now (Urgent + High Impact)</h3><div class="dash-list">${doNow.slice(0, 5).map(t => `
+      <div class="dash-item" onclick="editTask('${t.id}')">
+        <span class="dash-item-title">${esc(t.title)}</span>
+        <span class="dash-item-meta">${t.dueDate ? 'Due ' + formatDate(t.dueDate) : t.list}</span>
+      </div>`).join('')}</div>`;
+  } else { doNowEl.innerHTML = '<div class="dash-empty">No urgent + high impact tasks right now 👍</div>'; }
+
+  // Stale waiting
+  const waitingEl = document.getElementById('dashWaiting');
+  if (waitingOld.length > 0) {
+    waitingEl.innerHTML = `<h3>⏳ Waiting On (3+ days)</h3><div class="dash-list">${waitingOld.map(t => `
+      <div class="dash-item" onclick="editTask('${t.id}')">
+        <span class="dash-item-title">${esc(t.title)}</span>
+        <span class="dash-item-meta">${(t.stakeholders || []).map(sid => getStakeholderName(sid)).join(', ') || 'No stakeholder'}</span>
+      </div>`).join('')}</div>`;
+  } else { waitingEl.innerHTML = ''; }
+}
+
+// ═══════════════════════════
+// TASKS
+// ═══════════════════════════
+function openTaskModal(defaultList) {
+  document.getElementById('taskEditId').value = '';
+  document.getElementById('taskTitle').value = '';
+  document.getElementById('taskDesc').value = '';
+  document.getElementById('taskUrgency').value = 'urgent';
+  document.getElementById('taskImpact').value = 'high';
+  document.getElementById('taskList').value = defaultList || 'today';
+  document.getElementById('taskDue').value = '';
+  document.getElementById('taskRecurrence').value = 'none';
+  document.getElementById('taskModalTitle').textContent = 'Add Task';
+  document.getElementById('taskDeleteBtn').style.display = 'none';
+  document.getElementById('taskNotesSection').style.display = 'none';
+  populateStakeholderSelects();
+  const sel = document.getElementById('taskStakeholders');
+  Array.from(sel.options).forEach(o => o.selected = false);
+  document.getElementById('taskModal').classList.add('active');
+  setTimeout(() => document.getElementById('taskTitle').focus(), 100);
+}
+
+function editTask(id) {
+  const task = tasksCache.find(t => t.id === id);
+  if (!task) return;
+  document.getElementById('taskEditId').value = id;
+  document.getElementById('taskTitle').value = task.title || '';
+  document.getElementById('taskDesc').value = task.description || '';
+  document.getElementById('taskUrgency').value = task.urgency || 'urgent';
+  document.getElementById('taskImpact').value = task.impact || 'high';
+  document.getElementById('taskList').value = task.list || 'today';
+  document.getElementById('taskDue').value = task.dueDate || '';
+  document.getElementById('taskRecurrence').value = task.recurrence || 'none';
+  document.getElementById('taskModalTitle').textContent = 'Edit Task';
+  document.getElementById('taskDeleteBtn').style.display = 'inline-flex';
+  populateStakeholderSelects();
+  const sel = document.getElementById('taskStakeholders');
+  Array.from(sel.options).forEach(o => { o.selected = (task.stakeholders || []).includes(o.value); });
+
+  // Notes
+  document.getElementById('taskNotesSection').style.display = 'block';
+  renderTaskNotes(task);
+
+  document.getElementById('taskModal').classList.add('active');
+}
+
+function renderTaskNotes(task) {
+  const notes = task.notes || [];
+  document.getElementById('taskNotesList').innerHTML = notes.length === 0
+    ? '<div style="font-size:12px;color:var(--text-tertiary);padding:4px 0;">No notes yet</div>'
+    : notes.map((n, i) => `<div class="note-item"><div class="note-date">${n.date || ''}</div><div class="note-text">${esc(n.text)}</div></div>`).join('');
+}
+
+async function addTaskNote() {
+  const id = document.getElementById('taskEditId').value;
+  const input = document.getElementById('taskNoteInput');
+  const text = input.value.trim();
+  if (!text || !id) return;
+  const task = tasksCache.find(t => t.id === id);
+  if (!task) return;
+  if (!task.notes) task.notes = [];
+  task.notes.push({ text, date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) });
+  await fsUpdate('tasks', id, { notes: task.notes });
+  input.value = '';
+  renderTaskNotes(task);
+}
+
+async function saveTask() {
+  const title = document.getElementById('taskTitle').value.trim();
+  if (!title) { alert('Title required'); return; }
+  const sids = Array.from(document.getElementById('taskStakeholders').selectedOptions).map(o => o.value);
+  const data = {
+    title,
+    description: document.getElementById('taskDesc').value.trim(),
+    urgency: document.getElementById('taskUrgency').value,
+    impact: document.getElementById('taskImpact').value,
+    list: document.getElementById('taskList').value,
+    stakeholders: sids,
+    dueDate: document.getElementById('taskDue').value,
+    recurrence: document.getElementById('taskRecurrence').value,
+    done: false
+  };
+  const editId = document.getElementById('taskEditId').value;
+  if (editId) {
+    const existing = tasksCache.find(t => t.id === editId);
+    data.notes = existing ? existing.notes || [] : [];
+    data.done = existing ? existing.done : false;
+    await fsUpdate('tasks', editId, data);
+    const idx = tasksCache.findIndex(t => t.id === editId);
+    if (idx > -1) tasksCache[idx] = { ...tasksCache[idx], ...data };
+  } else {
+    data.notes = [];
+    const id = await fsAdd('tasks', data);
+    data.id = id;
+    tasksCache.unshift(data);
+  }
+  closeModal('taskModal');
+  renderAll();
+}
+
+async function deleteTaskFromModal() {
+  const id = document.getElementById('taskEditId').value;
+  if (!id || !confirm('Delete this task?')) return;
+  await fsDelete('tasks', id);
+  tasksCache = tasksCache.filter(t => t.id !== id);
+  closeModal('taskModal');
+  renderAll();
+}
+
+async function toggleTaskDone(id) {
+  const task = tasksCache.find(t => t.id === id);
+  if (!task) return;
+  task.done = !task.done;
+  await fsUpdate('tasks', id, { done: task.done });
+  renderAll();
+}
+
+async function moveTask(id, newList) {
+  const task = tasksCache.find(t => t.id === id);
+  if (!task) return;
+  task.list = newList;
+  await fsUpdate('tasks', id, { list: newList });
+  renderLists();
+}
+
+// ── Recurring Tasks ──
+async function generateRecurringTasks() {
+  const today = todayStr();
+  const recurring = tasksCache.filter(t => t.recurrence && t.recurrence !== 'none' && t.done);
+  for (const task of recurring) {
+    const lastGen = task.lastRecurrenceDate || task.dueDate || '';
+    let nextDate = '';
+    if (task.recurrence === 'daily') {
+      const d = lastGen ? new Date(lastGen + 'T00:00:00') : new Date();
+      d.setDate(d.getDate() + 1);
+      nextDate = d.toISOString().split('T')[0];
+    } else if (task.recurrence === 'weekly') {
+      const d = lastGen ? new Date(lastGen + 'T00:00:00') : new Date();
+      d.setDate(d.getDate() + 7);
+      nextDate = d.toISOString().split('T')[0];
+    } else if (task.recurrence === 'monthly') {
+      const d = lastGen ? new Date(lastGen + 'T00:00:00') : new Date();
+      d.setMonth(d.getMonth() + 1);
+      nextDate = d.toISOString().split('T')[0];
+    }
+    if (nextDate && nextDate <= today) {
+      const newTask = { title: task.title, description: task.description, urgency: task.urgency, impact: task.impact, list: task.list, stakeholders: task.stakeholders || [], dueDate: nextDate, recurrence: task.recurrence, done: false, notes: [], lastRecurrenceDate: nextDate };
+      const id = await fsAdd('tasks', newTask);
+      newTask.id = id;
+      tasksCache.unshift(newTask);
+      // Update parent
+      await fsUpdate('tasks', task.id, { lastRecurrenceDate: nextDate });
+      task.lastRecurrenceDate = nextDate;
+    }
+  }
+}
+
+// ── Render Triage ──
+function renderTriage() {
+  const quadrants = {
+    'urgent-high': document.querySelector('#q-urgent-high .quadrant-items'),
+    'urgent-low': document.querySelector('#q-urgent-low .quadrant-items'),
+    'noturgent-high': document.querySelector('#q-noturgent-high .quadrant-items'),
+    'noturgent-low': document.querySelector('#q-noturgent-low .quadrant-items')
+  };
+  Object.values(quadrants).forEach(q => q.innerHTML = '');
+  const active = tasksCache.filter(t => !t.done);
+  // Sort overdue to top
+  active.sort((a, b) => (isOverdue(b) ? 1 : 0) - (isOverdue(a) ? 1 : 0));
+
+  active.forEach(task => {
+    const key = (task.urgency === 'urgent' ? 'urgent' : 'noturgent') + '-' + (task.impact || 'high');
+    const container = quadrants[key];
+    if (!container) return;
+    const overdue = isOverdue(task);
+    const chips = (task.stakeholders || []).map(sid => `<span class="stakeholder-chip">${getStakeholderName(sid)}</span>`).join('');
+    container.innerHTML += `
+      <div class="triage-item ${overdue ? 'overdue-row' : ''}" onclick="editTask('${task.id}')">
+        <div>
+          <div class="triage-item-title">${esc(task.title)} ${overdue ? '<span class="badge badge-overdue">overdue</span>' : ''} ${task.recurrence && task.recurrence !== 'none' ? '<span class="badge" style="background:#f3f4f6;color:var(--text-tertiary);">↻ ' + task.recurrence + '</span>' : ''}</div>
+          ${chips ? `<div class="triage-item-stakeholders">${chips}</div>` : ''}
+        </div>
+      </div>`;
+  });
+  Object.values(quadrants).forEach(el => {
+    if (!el.innerHTML.trim()) el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-tertiary);font-size:12px;">Empty</div>';
+  });
+}
+
+// ── Render Lists ──
+function renderLists() {
+  ['today', 'week', 'waiting'].forEach(listName => {
+    const container = document.querySelector(`#list-${listName} .list-items`);
+    let items = tasksCache.filter(t => t.list === listName);
+    // Sort: overdue first, then not done, then done
+    items.sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      if (isOverdue(a) !== isOverdue(b)) return isOverdue(b) ? 1 : -1;
+      return 0;
+    });
+    document.getElementById(`count-${listName}`).textContent = items.filter(t => !t.done).length;
+
+    if (items.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:12px;">No tasks</div>';
+      return;
+    }
+    container.innerHTML = items.map(task => {
+      const overdue = isOverdue(task);
+      const chips = (task.stakeholders || []).map(sid => `<span class="stakeholder-chip">${getStakeholderName(sid)}</span>`).join('');
+      const noteCount = (task.notes || []).length;
+      return `
+        <div class="list-item ${overdue ? 'overdue-row' : ''}">
+          <div class="list-item-check ${task.done ? 'done' : ''}" onclick="toggleTaskDone('${task.id}')"></div>
+          <div class="list-item-body" onclick="editTask('${task.id}')">
+            <div class="list-item-title ${task.done ? 'done' : ''}">${esc(task.title)}</div>
+            <div class="list-item-meta">
+              ${overdue ? '<span class="badge badge-overdue">overdue</span>' : ''}
+              ${task.dueDate ? '<span>Due ' + formatDate(task.dueDate) + '</span>' : ''}
+              ${task.recurrence && task.recurrence !== 'none' ? '<span>↻ ' + task.recurrence + '</span>' : ''}
+              ${noteCount ? '<span>📝 ' + noteCount + '</span>' : ''}
+              ${chips}
+            </div>
+          </div>
+          <div class="list-item-move" onclick="event.stopPropagation()">
+            <select onchange="moveTask('${task.id}', this.value)">
+              <option value="today" ${task.list === 'today' ? 'selected' : ''}>Today</option>
+              <option value="week" ${task.list === 'week' ? 'selected' : ''}>Week</option>
+              <option value="waiting" ${task.list === 'waiting' ? 'selected' : ''}>Waiting</option>
+            </select>
+          </div>
+        </div>`;
+    }).join('');
+  });
+}
+
+// ═══════════════════════════
+// DECISIONS
+// ═══════════════════════════
+function openDecisionModal() {
+  document.getElementById('decisionEditId').value = '';
+  document.getElementById('decisionIssue').value = '';
+  document.getElementById('decisionText').value = '';
+  document.getElementById('decisionRationale').value = '';
+  populateStakeholderSelects();
+  const sel = document.getElementById('decisionStakeholders');
+  Array.from(sel.options).forEach(o => o.selected = false);
+  document.getElementById('decisionModal').classList.add('active');
+  setTimeout(() => document.getElementById('decisionIssue').focus(), 100);
+}
+
+async function saveDecision() {
+  const issue = document.getElementById('decisionIssue').value.trim();
+  if (!issue) { alert('Issue required'); return; }
+  const sids = Array.from(document.getElementById('decisionStakeholders').selectedOptions).map(o => o.value);
+  const data = { issue, decision: document.getElementById('decisionText').value.trim(), rationale: document.getElementById('decisionRationale').value.trim(), stakeholders: sids, date: todayStr() };
+  const editId = document.getElementById('decisionEditId').value;
+  if (editId) {
+    await fsUpdate('decisions', editId, data);
+    const idx = decisionsCache.findIndex(d => d.id === editId);
+    if (idx > -1) decisionsCache[idx] = { ...decisionsCache[idx], ...data };
+  } else {
+    const id = await fsAdd('decisions', data);
+    data.id = id;
+    decisionsCache.unshift(data);
+  }
+  closeModal('decisionModal');
+  renderAll();
+}
+
+async function deleteDecision(id) {
+  if (!confirm('Delete this decision?')) return;
+  await fsDelete('decisions', id);
+  decisionsCache = decisionsCache.filter(d => d.id !== id);
+  renderAll();
+}
+
+function renderDecisions() {
+  const c = document.getElementById('decisionList');
+  if (decisionsCache.length === 0) {
+    c.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><h3>No decisions logged</h3><p>Start recording to build your audit trail.</p></div>';
+    return;
+  }
+  c.innerHTML = decisionsCache.map(d => {
+    const chips = (d.stakeholders || []).map(sid => `<span class="stakeholder-chip">${getStakeholderName(sid)}</span>`).join('');
+    return `<div class="card decision-card">
+      <div class="decision-header"><span class="decision-issue">${esc(d.issue)}</span><span class="decision-date">${formatDate(d.date)}</span></div>
+      <div class="decision-body"><strong>Decision:</strong> ${esc(d.decision || '—')}<br><strong>Rationale:</strong> ${esc(d.rationale || '—')}</div>
+      ${chips ? `<div class="decision-stakeholders">${chips}</div>` : ''}
+      <div class="decision-actions"><button class="btn btn-ghost btn-sm" onclick="deleteDecision('${d.id}')">Delete</button></div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════
+// WEEKLY REVIEW
+// ═══════════════════════════
+const REVIEW_ITEMS = [
+  "Clear completed tasks from all lists",
+  "Move unfinished 'Today' items to 'This Week'",
+  "Review 'Waiting On' — follow up on stale items",
+  "Check decision log — anything unresolved?",
+  "Identify top 3 priorities for next week",
+  "Review upcoming deadlines (next 7 days)",
+  "Update stakeholder notes if needed",
+  "Flag any escalations for Monday",
+  "Clear email inbox (or close to it)",
+  "One thing you did well this week"
+];
+
+function getWeekKey(offset) { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1 + (offset * 7)); return d.toISOString().split('T')[0]; }
+function getWeekLabel(offset) {
+  const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1 + (offset * 7));
+  const s = new Date(d); s.setDate(d.getDate() + 6);
+  const fmt = x => x.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return `${fmt(d)} – ${fmt(s)}`;
+}
+function changeReviewWeek(dir) { currentReviewWeekOffset += dir; renderReview(); }
+
+async function toggleReviewItem(wk, idx) {
+  const key = `review_${wk}`;
+  let checked = JSON.parse(localStorage.getItem(key) || '[]');
+  checked = checked.includes(idx) ? checked.filter(i => i !== idx) : [...checked, idx];
+  localStorage.setItem(key, JSON.stringify(checked));
+  try { await userCol('reviews').doc(wk).set({ checked }, { merge: true }); } catch(e) {}
+  renderReview();
+}
+
+async function renderReview() {
+  const wk = getWeekKey(currentReviewWeekOffset);
+  document.getElementById('reviewWeekLabel').textContent = getWeekLabel(currentReviewWeekOffset);
+  let checked = JSON.parse(localStorage.getItem(`review_${wk}`) || '[]');
+  try { const doc = await userCol('reviews').doc(wk).get(); if (doc.exists && doc.data().checked) { checked = doc.data().checked; localStorage.setItem(`review_${wk}`, JSON.stringify(checked)); } } catch(e) {}
+  document.getElementById('reviewChecklist').innerHTML = REVIEW_ITEMS.map((item, i) => {
+    const ch = checked.includes(i);
+    return `<div class="review-item ${ch ? 'checked' : ''}" onclick="toggleReviewItem('${wk}',${i})"><input type="checkbox" ${ch ? 'checked' : ''} onclick="event.stopPropagation();toggleReviewItem('${wk}',${i})"><label>${item}</label></div>`;
+  }).join('');
+  const done = checked.length, total = REVIEW_ITEMS.length;
+  document.getElementById('reviewProgressFill').style.width = `${(done/total)*100}%`;
+  document.getElementById('reviewProgressText').textContent = `${done} of ${total} completed`;
+}
+
+// ═══════════════════════════
+// STAKEHOLDERS
+// ═══════════════════════════
+function openStakeholderModal() {
+  document.getElementById('stakeholderEditId').value = '';
+  document.getElementById('stakeholderName').value = '';
+  document.getElementById('stakeholderRole').value = '';
+  document.getElementById('stakeholderDept').value = '';
+  document.getElementById('stakeholderContact').value = '';
+  document.getElementById('stakeholderModalTitle').textContent = 'Add Stakeholder';
+  document.getElementById('stakeholderModal').classList.add('active');
+  setTimeout(() => document.getElementById('stakeholderName').focus(), 100);
+}
+
+function editStakeholder(id) {
+  const s = stakeholdersCache.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('stakeholderEditId').value = id;
+  document.getElementById('stakeholderName').value = s.name || '';
+  document.getElementById('stakeholderRole').value = s.role || '';
+  document.getElementById('stakeholderDept').value = s.department || '';
+  document.getElementById('stakeholderContact').value = s.contact || '';
+  document.getElementById('stakeholderModalTitle').textContent = 'Edit Stakeholder';
+  document.getElementById('stakeholderModal').classList.add('active');
+}
+
+async function saveStakeholder() {
+  const name = document.getElementById('stakeholderName').value.trim();
+  if (!name) { alert('Name required'); return; }
+  const data = { name, role: document.getElementById('stakeholderRole').value.trim(), department: document.getElementById('stakeholderDept').value.trim(), contact: document.getElementById('stakeholderContact').value.trim() };
+  const editId = document.getElementById('stakeholderEditId').value;
+  if (editId) {
+    await fsUpdate('stakeholders', editId, data);
+    const idx = stakeholdersCache.findIndex(s => s.id === editId);
+    if (idx > -1) stakeholdersCache[idx] = { ...stakeholdersCache[idx], ...data };
+  } else {
+    const id = await fsAdd('stakeholders', data);
+    data.id = id;
+    stakeholdersCache.unshift(data);
+  }
+  closeModal('stakeholderModal');
+  renderAll();
+}
+
+async function deleteStakeholder(id) {
+  if (!confirm('Delete this stakeholder?')) return;
+  await fsDelete('stakeholders', id);
+  stakeholdersCache = stakeholdersCache.filter(s => s.id !== id);
+  renderAll();
+}
+
+function renderStakeholders() {
+  const c = document.getElementById('stakeholderGrid');
+  if (stakeholdersCache.length === 0) {
+    c.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><h3>No stakeholders added</h3><p>Add people to link them to tasks and decisions.</p></div>';
+    return;
+  }
+  c.innerHTML = stakeholdersCache.map(s => {
+    const taskCount = tasksCache.filter(t => (t.stakeholders || []).includes(s.id) && !t.done).length;
+    const decCount = decisionsCache.filter(d => (d.stakeholders || []).includes(s.id)).length;
+    return `<div class="card stakeholder-card" onclick="showStakeholderDetail('${s.id}')">
+      <h4>${esc(s.name)}</h4>
+      <div class="role">${esc(s.role || '—')}</div>
+      <div class="dept">${esc(s.department || '')}</div>
+      ${s.contact ? `<div class="contact">${esc(s.contact)}</div>` : ''}
+      <div class="task-count">${taskCount} active task${taskCount !== 1 ? 's' : ''} · ${decCount} decision${decCount !== 1 ? 's' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Stakeholder Detail View ──
+function showStakeholderDetail(id) {
+  switchTab('stakeholders');
+  const s = stakeholdersCache.find(x => x.id === id);
+  if (!s) return;
+  const tasks = tasksCache.filter(t => (t.stakeholders || []).includes(id));
+  const decisions = decisionsCache.filter(d => (d.stakeholders || []).includes(id));
+
+  const panel = document.getElementById('stakeholderDetailPanel');
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="stakeholder-detail">
+      <div class="stakeholder-detail-header">
+        <h3>${esc(s.name)}</h3>
+        <div>
+          <button class="btn btn-ghost btn-sm" onclick="editStakeholder('${s.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('stakeholderDetailPanel').style.display='none'">Close</button>
+        </div>
+      </div>
+      <div class="stakeholder-detail-info">${esc(s.role || '')}${s.department ? ' · ' + esc(s.department) : ''}${s.contact ? ' · ' + esc(s.contact) : ''}</div>
+
+      <div class="stakeholder-detail-section">
+        <h4>Tasks (${tasks.length})</h4>
+        ${tasks.length === 0 ? '<div style="font-size:12px;color:var(--text-tertiary);">No linked tasks</div>' :
+          tasks.map(t => `<div class="stakeholder-detail-item" style="cursor:pointer;display:flex;justify-content:space-between;" onclick="editTask('${t.id}')">
+            <span>${t.done ? '✓ ' : ''}${esc(t.title)}</span>
+            <span style="color:var(--text-tertiary);font-size:11px;">${t.list}${isOverdue(t) ? ' · <span style="color:var(--danger)">overdue</span>' : ''}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="stakeholder-detail-section">
+        <h4>Decisions (${decisions.length})</h4>
+        ${decisions.length === 0 ? '<div style="font-size:12px;color:var(--text-tertiary);">No linked decisions</div>' :
+          decisions.map(d => `<div class="stakeholder-detail-item">
+            <strong>${esc(d.issue)}</strong> — ${esc(d.decision || '—')} <span style="color:var(--text-tertiary);font-size:11px;">${d.date || ''}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  panel.scrollIntoView({ behavior: 'smooth' });
+}
+
+function populateStakeholderSelects() {
+  ['taskStakeholders', 'decisionStakeholders'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const prev = Array.from(sel.selectedOptions).map(o => o.value);
+    sel.innerHTML = stakeholdersCache.map(s => `<option value="${s.id}" ${prev.includes(s.id) ? 'selected' : ''}>${esc(s.name)} — ${esc(s.role || '')}</option>`).join('');
+  });
+}
+</script>
+</body>
+</html>
