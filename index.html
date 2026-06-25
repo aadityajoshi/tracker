@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/tabler-icons.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sidebar:#04091a;--sidebar-2:#0a1128;--sidebar-glow:rgba(6,182,212,0.06);
+  --bg:#f1f5f9;--surface:#ffffff;--surface-alt:#f8fafc;--surface-hover:#f1f5f9;
+  --border:#e2e8f0;--border-light:#f1f5f9;
+  --text:#0f172a;--text-2:#475569;--text-3:#94a3b8;--text-4:#cbd5e1;
+  --cyan:#06b6d4;--cyan-2:#22d3ee;--cyan-light:#ecfeff;--cyan-dark:#155e75;--cyan-glow:rgba(6,182,212,0.15);
+  --red:#ef4444;--red-light:#fef2f2;--red-dark:#991b1b;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#92400e;
+  --green:#10b981;--green-light:#ecfdf5;--green-dark:#065f46;
+  --violet:#8b5cf6;--violet-light:#f5f3ff;
+  --r:12px;--r-sm:8px;
+  --sh-sm:0 1px 2px rgba(0,0,0,0.04);--sh:0 2px 8px rgba(0,0,0,0.06);--sh-lg:0 12px 32px rgba(0,0,0,0.1);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased}
+::selection{background:var(--cyan-glow);color:var(--cyan-dark)}
+
+/* ══ Auth ══ */
+.auth{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(135deg,#04091a 0%,#0a1e3d 50%,#04091a 100%)}
+.auth-card{background:var(--surface);border-radius:16px;padding:52px 44px;text-align:center;max-width:400px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,0.4)}
+.auth-card .logo{width:52px;height:52px;background:linear-gradient(135deg,var(--cyan),#0891b2);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 4px 20px rgba(6,182,212,0.3)}
+.auth-card .logo i{font-size:26px;color:#fff}
+.auth-card h1{font-size:26px;font-weight:700;letter-spacing:-.6px}
+.auth-card .sub{font-size:13px;color:var(--text-3);margin:6px 0 28px}
+.auth-form{text-align:left;margin-bottom:8px}
+.auth-form .fg{margin-bottom:12px}
+.auth-form .fg label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;margin-bottom:5px;color:var(--text-2)}
+.auth-form .fg label i{font-size:14px;color:var(--text-3)}
+.auth-form .fg input{width:100%;padding:11px 14px;font-size:13px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;background:var(--surface);color:var(--text);transition:all .2s}
+.auth-form .fg input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 4px var(--cyan-glow)}
+.auth-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--cyan),#0891b2);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.auth-btn:hover{box-shadow:0 4px 16px rgba(6,182,212,0.35);transform:translateY(-1px)}
+.auth-btn i{font-size:18px}
+.auth-toggle{margin-top:16px;font-size:12px;color:var(--text-3);text-align:center}
+.auth-toggle a{color:var(--cyan);cursor:pointer;font-weight:500;text-decoration:none;border:none;background:none;font-family:inherit;font-size:inherit;padding:0}
+.auth-toggle a:hover{text-decoration:underline}
+.auth-err{font-size:12px;color:var(--red);margin-top:8px;display:none;text-align:center;padding:8px;background:var(--red-light);border-radius:8px}
+.auth-btn:disabled{opacity:0.6;cursor:not-allowed;transform:none!important}
+
+/* ══ Shell ══ */
+.app{display:none}.app.active{display:flex;min-height:100vh}
+
+/* ══ Sidebar ══ */
+.sidebar{width:240px;background:var(--sidebar);padding:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;transition:transform .25s cubic-bezier(.4,0,.2,1);border-right:1px solid rgba(255,255,255,0.04)}
+.sb-top{padding:22px 20px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.05)}
+.sb-logo{width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),#0891b2);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(6,182,212,0.25)}
+.sb-logo i{font-size:18px;color:#fff}
+.sb-brand{flex:1}
+.sb-brand h2{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:-.2px}
+.sb-brand .usr{font-size:11px;color:rgba(255,255,255,0.25);margin-top:1px}
+.sb-search{padding:14px 14px 8px;position:relative}
+.sb-search input{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:var(--r-sm);padding:9px 12px 9px 34px;font-size:12px;color:#e2e8f0;font-family:inherit;outline:none;transition:all .2s}
+.sb-search input::placeholder{color:rgba(255,255,255,0.18)}
+.sb-search input:focus{border-color:rgba(6,182,212,0.4);background:rgba(255,255,255,0.06);box-shadow:0 0 0 3px rgba(6,182,212,0.08)}
+.sb-search .si{position:absolute;left:24px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.18);font-size:15px}
+.sb-nav{padding:8px 10px;flex:1;overflow-y:auto}
+.sb-nav::-webkit-scrollbar{width:0}
+.ni{padding:10px 14px;border-radius:var(--r-sm);display:flex;align-items:center;gap:11px;cursor:pointer;margin-bottom:2px;transition:all .15s;position:relative}
+.ni i{font-size:18px;color:rgba(255,255,255,0.22);transition:color .15s}
+.ni span{font-size:13px;color:rgba(255,255,255,0.4);font-weight:500;transition:color .15s}
+.ni:hover{background:rgba(255,255,255,0.03)}
+.ni:hover i{color:rgba(255,255,255,0.4)}
+.ni:hover span{color:rgba(255,255,255,0.55)}
+.ni.active{background:var(--sidebar-glow)}
+.ni.active::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--cyan-2)}
+.ni.active i{color:var(--cyan-2)}
+.ni.active span{color:#cffafe;font-weight:600}
+.sb-bottom{padding:12px 14px;border-top:1px solid rgba(255,255,255,0.04)}
+.sb-bottom .ni i{font-size:16px}.sb-bottom .ni span{font-size:12px;color:rgba(255,255,255,0.2)}
+
+/* ══ Search Results ══ */
+.sres{position:fixed;top:62px;left:254px;width:380px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-lg);max-height:420px;overflow-y:auto;z-index:300;display:none}
+.sres.active{display:block}
+.sri{padding:11px 16px;cursor:pointer;border-bottom:1px solid var(--border-light);display:flex;align-items:flex-start;gap:10px;transition:background .1s}
+.sri:hover{background:var(--surface-alt)}
+.sri:last-child{border-bottom:none}
+.sri-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.sri-icon.task{background:var(--cyan-light);color:var(--cyan-dark)}
+.sri-icon.decision{background:var(--violet-light);color:var(--violet)}
+.sri-icon.stakeholder{background:var(--green-light);color:var(--green-dark)}
+.sri-icon i{font-size:14px}
+.sri-body{flex:1;min-width:0}
+.sri-title{font-size:13px;font-weight:500}
+.sri-meta{font-size:11px;color:var(--text-3);margin-top:1px}
+
+/* ══ Content ══ */
+.content{margin-left:240px;flex:1;padding:28px 36px;max-width:1040px}
+.tab-content{display:none}.tab-content.active{display:block}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.sh h2{font-size:20px;font-weight:700;letter-spacing:-.4px}
+.sh-desc{font-size:12px;color:var(--text-3);margin-top:2px}
+
+/* ══ Buttons ══ */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;font-size:13px;font-weight:500;border-radius:var(--r-sm);border:none;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn i{font-size:16px}
+.btn-primary{background:linear-gradient(135deg,var(--cyan),#0891b2);color:#fff;box-shadow:0 2px 8px rgba(6,182,212,0.25)}
+.btn-primary:hover{box-shadow:0 4px 16px rgba(6,182,212,0.35);transform:translateY(-1px)}
+.btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:#cbd5e1;box-shadow:var(--sh-sm)}
+.btn-danger{background:var(--red-light);color:var(--red)}
+.btn-sm{padding:5px 11px;font-size:12px}
+
+/* ══ Cards ══ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:var(--sh-sm);transition:all .2s}
+.card:hover{box-shadow:var(--sh);border-color:#cbd5e1}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;font-size:10px;font-weight:600;border-radius:20px}
+.badge i{font-size:11px}
+.badge-od{background:var(--red-light);color:var(--red-dark)}
+.badge-cyan{background:var(--cyan-light);color:var(--cyan-dark)}
+.badge-amber{background:var(--amber-light);color:var(--amber-dark)}
+.badge-green{background:var(--green-light);color:var(--green-dark)}
+.s-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;font-size:11px;background:var(--surface-alt);border:1px solid var(--border-light);border-radius:20px;color:var(--text-2);font-weight:500}
+.s-chip i{font-size:12px;color:var(--text-3)}
+.overdue-row{border-left:3px solid var(--red)!important;background:var(--red-light)!important}
+
+/* ══ FAB ══ */
+.fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),#0891b2);color:#fff;border:none;font-size:24px;cursor:pointer;box-shadow:0 6px 20px rgba(6,182,212,0.35);z-index:150;display:flex;align-items:center;justify-content:center;transition:all .25s}
+.fab:hover{transform:scale(1.1) rotate(90deg);box-shadow:0 8px 28px rgba(6,182,212,0.45)}
+.fab i{font-size:24px}
+
+/* ══ Dashboard ══ */
+.d-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.d-card{padding:18px;background:var(--surface);border-radius:var(--r);border:1px solid var(--border);display:flex;align-items:flex-start;gap:14px;transition:all .2s}
+.d-card:hover{box-shadow:var(--sh);transform:translateY(-2px)}
+.d-card .d-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.d-card .d-icon i{font-size:20px}
+.d-card .d-icon.red{background:var(--red-light);color:var(--red)}
+.d-card .d-icon.cyan{background:var(--cyan-light);color:var(--cyan)}
+.d-card .d-icon.amber{background:var(--amber-light);color:var(--amber)}
+.d-card .d-icon.green{background:var(--green-light);color:var(--green)}
+.d-card .d-info .num{font-size:28px;font-weight:700;letter-spacing:-1px;line-height:1.1}
+.d-card .d-info .lbl{font-size:11px;color:var(--text-3);font-weight:500;margin-top:2px}
+.d-sec{margin-bottom:24px}
+.d-sec h3{font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.d-sec h3 i{font-size:16px}
+.d-item{background:var(--surface);border-radius:var(--r-sm);padding:12px 16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:6px;transition:all .15s}
+.d-item:hover{border-color:#cbd5e1;box-shadow:var(--sh-sm);transform:translateX(3px)}
+.d-item.od{border-left:3px solid var(--red)}.d-item.wt{border-left:3px solid var(--amber)}
+.d-item-t{font-size:13px;font-weight:500}.d-item-s{font-size:11px;color:var(--text-3);margin-top:2px}
+.d-empty{text-align:center;padding:28px;color:var(--text-3);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm)}
+
+/* ══ Triage ══ */
+.t-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.t-q{border-radius:var(--r);padding:16px;min-height:200px;border:1px solid var(--border);transition:box-shadow .2s}
+.t-q:hover{box-shadow:var(--sh-sm)}
+.t-q h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-bottom:10px;display:flex;align-items:center;gap:7px}
+.t-q h3 i{font-size:15px}
+.tq1{background:linear-gradient(135deg,#fef2f2 0%,#fff5f5 100%);border-color:#fecaca}
+.tq1 h3{color:var(--red);border-bottom:1px solid #fecaca}
+.tq2{background:linear-gradient(135deg,#fffbeb 0%,#fefce8 100%);border-color:#fde68a}
+.tq2 h3{color:var(--amber);border-bottom:1px solid #fde68a}
+.tq3{background:linear-gradient(135deg,#ecfeff 0%,#f0fdfa 100%);border-color:#a5f3fc}
+.tq3 h3{color:var(--cyan);border-bottom:1px solid #a5f3fc}
+.tq4{background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);border-color:#e2e8f0}
+.tq4 h3{color:var(--text-3);border-bottom:1px solid var(--border-light)}
+.ti{padding:10px 12px;margin-bottom:6px;background:rgba(255,255,255,0.7);border-radius:var(--r-sm);font-size:13px;cursor:pointer;transition:all .15s;border:1px solid transparent;backdrop-filter:blur(4px)}
+.ti:hover{background:rgba(255,255,255,0.9);border-color:rgba(0,0,0,0.06);transform:translateX(3px)}
+.ti-t{font-weight:500;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ti-chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px}
+
+/* ══ Lists ══ */
+.l-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.l-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;min-height:300px}
+.l-col-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border-light)}
+.l-col-h h3{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.l-col-h h3 i{font-size:16px;color:var(--text-3)}
+.l-cnt{font-size:11px;background:var(--cyan-light);padding:2px 9px;border-radius:10px;color:var(--cyan-dark);font-weight:700}
+.li{display:flex;align-items:flex-start;gap:9px;padding:10px;margin-bottom:5px;background:var(--surface-alt);border-radius:var(--r-sm);font-size:13px;transition:all .15s;border:1px solid transparent}
+.li:hover{background:var(--surface-hover);border-color:var(--border)}
+.li-ck{width:18px;height:18px;border:2px solid var(--border);border-radius:50%;cursor:pointer;flex-shrink:0;margin-top:1px;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.li-ck:hover{border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan-glow)}
+.li-ck.done{background:var(--green);border-color:var(--green)}.li-ck.done::after{content:'✓';color:#fff;font-size:10px;font-weight:700}
+.li-body{flex:1;min-width:0;cursor:pointer}
+.li-t{font-weight:500}.li-t.done{text-decoration:line-through;color:var(--text-3)}
+.li-m{font-size:11px;color:var(--text-3);margin-top:3px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.li-mv select{font-size:11px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;background:var(--surface);font-family:inherit;cursor:pointer}
+
+/* ══ Decisions ══ */
+.dec-list{display:flex;flex-direction:column;gap:12px}
+.dec-c{padding:20px}
+.dec-h{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.dec-iss{font-size:15px;font-weight:600;flex:1;display:flex;align-items:center;gap:6px}
+.dec-iss i{color:var(--violet);font-size:16px}
+.dec-dt{font-size:11px;color:var(--text-3)}
+.dec-b{font-size:13px;color:var(--text-2);line-height:1.7}
+.dec-b strong{color:var(--text);font-weight:600}
+.dec-chips{margin-top:10px;display:flex;flex-wrap:wrap;gap:4px}
+
+/* ══ Review ══ */
+.rev-c{max-width:640px}
+.rev-score{display:flex;align-items:center;gap:24px;margin-bottom:24px;padding:20px 24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
+.rev-ring{position:relative;width:80px;height:80px;flex-shrink:0}
+.rev-ring svg{transform:rotate(-90deg);width:80px;height:80px}
+.rev-ring .ring-bg{fill:none;stroke:#e2e8f0;stroke-width:6}
+.rev-ring .ring-fg{fill:none;stroke:var(--cyan);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1)}
+.rev-ring .ring-fg.done{stroke:var(--green)}
+.rev-ring-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text)}
+.rev-score-info{flex:1}
+.rev-score-info .rev-status{font-size:14px;font-weight:600;margin-bottom:2px}
+.rev-score-info .rev-sub{font-size:12px;color:var(--text-3)}
+.rev-celebrate{display:none;padding:16px 20px;background:linear-gradient(135deg,var(--green-light),#d1fae5);border:1px solid #a7f3d0;border-radius:var(--r);margin-bottom:16px;text-align:center}
+.rev-celebrate.active{display:block;animation:revPop .4s cubic-bezier(.4,0,.2,1)}
+.rev-celebrate i{font-size:28px;color:var(--green);display:block;margin-bottom:6px}
+.rev-celebrate .rev-cel-t{font-size:14px;font-weight:600;color:var(--green-dark)}
+.rev-celebrate .rev-cel-s{font-size:12px;color:var(--green)}
+@keyframes revPop{0%{transform:scale(0.9);opacity:0}100%{transform:scale(1);opacity:1}}
+.rev-nav{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.rev-nav h3{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+.rev-nav h3 i{font-size:17px;color:var(--cyan)}
+.rv{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;margin-bottom:5px;transition:all .15s}
+.rv:hover{border-color:#cbd5e1;box-shadow:var(--sh-sm)}
+.rv input[type=checkbox]{width:18px;height:18px;accent-color:var(--cyan);cursor:pointer}
+.rv label{font-size:13px;cursor:pointer;flex:1}
+.rv.checked{background:var(--surface-alt);border-color:var(--border-light)}.rv.checked label{color:var(--text-3);text-decoration:line-through}
+.rv-bar{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:18px}
+.rv-fill{height:100%;background:linear-gradient(90deg,var(--cyan),#0891b2);border-radius:3px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+.rv-fill.done{background:linear-gradient(90deg,var(--green),#059669)}
+
+/* ══ Export ══ */
+.exp-opts{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+.exp-opt{padding:14px 18px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s}
+.exp-opt:hover{border-color:var(--cyan);background:var(--cyan-light);transform:translateX(3px)}
+.exp-opt i{font-size:20px;color:var(--cyan)}
+.exp-opt .exp-t{font-size:13px;font-weight:500}
+.exp-opt .exp-s{font-size:11px;color:var(--text-3)}
+.exp-custom{display:none;padding:16px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);margin-top:8px}
+.exp-custom.active{display:block}
+
+/* ══ Stakeholders ══ */
+.stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.stk-c{padding:18px;cursor:pointer;position:relative;overflow:hidden}
+.stk-c::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--cyan),transparent);opacity:0;transition:opacity .2s}
+.stk-c:hover::before{opacity:1}
+.stk-c h4{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.stk-c h4 i{color:var(--cyan);font-size:16px}
+.stk-c .role{font-size:12px;color:var(--text-2);margin-top:2px}
+.stk-c .dept{font-size:11px;color:var(--text-3)}
+.stk-c .contact{font-size:12px;color:var(--cyan);margin-top:5px;display:flex;align-items:center;gap:4px}
+.stk-c .contact i{font-size:13px}
+.stk-c .tcnt{font-size:11px;margin-top:8px;color:var(--text-3);display:flex;align-items:center;gap:4px}
+.stk-c .tcnt i{font-size:13px}
+.stk-det{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:22px;box-shadow:var(--sh)}
+.stk-det h3{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.stk-det h3 i{color:var(--cyan);font-size:20px}
+.stk-det-item{padding:9px 14px;background:var(--surface-alt);border-radius:var(--r-sm);margin-bottom:5px;font-size:13px;cursor:pointer;transition:all .1s;border:1px solid transparent}
+.stk-det-item:hover{border-color:var(--border);transform:translateX(3px)}
+
+/* ══ Notes ══ */
+.notes-sec{margin-top:16px;border-top:1px solid var(--border-light);padding-top:14px}
+.notes-sec h4{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-3);display:flex;align-items:center;gap:5px}
+.notes-sec h4 i{font-size:14px}
+.note-i{padding:9px 12px;background:var(--surface-alt);border-radius:var(--r-sm);margin-bottom:5px;font-size:12px}
+.note-i .nd{font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:3px}
+.note-i .nd i{font-size:11px}
+.note-add{display:flex;gap:8px;margin-top:8px}
+.note-add input{flex:1;padding:8px 12px;font-size:12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit}
+.note-add input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan-glow)}
+
+/* ══ Modal ══ */
+.mo{display:none;position:fixed;inset:0;background:rgba(4,9,26,0.6);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;padding:20px}
+.mo.active{display:flex}
+.modal{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.2)}
+.modal h3{font-size:17px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.modal h3 i{color:var(--cyan);font-size:20px}
+.fg{margin-bottom:14px}
+.fg label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;margin-bottom:5px;color:var(--text-2)}
+.fg label i{font-size:14px;color:var(--text-3)}
+.fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:inherit;background:var(--surface);color:var(--text);transition:all .2s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan-glow)}
+.fg textarea{resize:vertical;min-height:72px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fa{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+
+.empty{text-align:center;padding:48px 20px;color:var(--text-3)}
+.empty i{font-size:36px;color:var(--text-4);margin-bottom:12px;display:block}
+.empty h3{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+
+/* ══ Mobile ══ */
+.mt{display:none;position:fixed;top:14px;left:14px;z-index:200;width:42px;height:42px;border-radius:12px;background:var(--sidebar);border:1px solid rgba(255,255,255,0.08);color:#e2e8f0;font-size:20px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);box-shadow:12px 0 40px rgba(0,0,0,0.3)}.sidebar.open{transform:translateX(0)}
+  .mt{display:flex}
+  .content{margin-left:0;padding:64px 16px 16px}
+  .t-grid,.l-grid{grid-template-columns:1fr}
+  .d-grid{grid-template-columns:1fr 1fr}
+  .sres{left:16px;right:16px;width:auto}
+  .fr{grid-template-columns:1fr}
+  .fab{bottom:20px;right:20px;width:48px;height:48px}
+  .fab i{font-size:20px}
+}
+</style>
+</head>
+<body>
+
+<div class="auth" id="authScreen">
+  <div class="auth-card">
+    <div class="logo"><i class="ti ti-target-arrow"></i></div>
+    <h1>Tracker</h1>
+    <p class="sub" id="authSub">Sign in to continue</p>
+    <div class="auth-form">
+      <div class="fg">
+        <label><i class="ti ti-mail"></i> Email</label>
+        <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="fg">
+        <label><i class="ti ti-lock"></i> Password</label>
+        <input type="password" id="authPass" placeholder="Min 6 characters" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();doAuth();}">
+      </div>
+      <button type="button" class="auth-btn" id="authBtn" onclick="doAuth()">
+        <i class="ti ti-login"></i> <span id="authBtnText">Sign in</span>
+      </button>
+      <div class="auth-err" id="authErr"></div>
+    </div>
+    <div class="auth-toggle">
+      <span id="authToggleText">Don't have an account?</span>
+      <a href="javascript:void(0)" onclick="toggleAuthMode()" id="authToggleLink">Create one</a>
+    </div>
+  </div>
+</div>
+
+<button class="mt" id="mt" onclick="document.querySelector('.sidebar').classList.toggle('open')"><i class="ti ti-menu-2"></i></button>
+
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-top"><div class="sb-logo"><i class="ti ti-target-arrow"></i></div><div class="sb-brand"><h2>Tracker</h2><div class="usr" id="sUsr"></div></div></div>
+    <div class="sb-search"><i class="ti ti-search si"></i><input type="text" id="gSearch" placeholder="Search everything..." oninput="handleSearch(this.value)" onfocus="handleSearch(this.value)" autocomplete="off"></div>
+    <nav class="sb-nav">
+      <div class="ni active" data-tab="dashboard" onclick="switchTab('dashboard')"><i class="ti ti-layout-dashboard"></i><span>Dashboard</span></div>
+      <div class="ni" data-tab="triage" onclick="switchTab('triage')"><i class="ti ti-grid-dots"></i><span>Triage</span></div>
+      <div class="ni" data-tab="lists" onclick="switchTab('lists')"><i class="ti ti-list-check"></i><span>Running lists</span></div>
+      <div class="ni" data-tab="decisions" onclick="switchTab('decisions')"><i class="ti ti-gavel"></i><span>Decisions</span></div>
+      <div class="ni" data-tab="review" onclick="switchTab('review')"><i class="ti ti-calendar-check"></i><span>Weekly review</span></div>
+      <div class="ni" data-tab="stakeholders" onclick="switchTab('stakeholders')"><i class="ti ti-users-group"></i><span>Stakeholders</span></div>
+    </nav>
+    <div class="sb-bottom">
+      <div class="ni" onclick="openExport()"><i class="ti ti-file-spreadsheet"></i><span>Export to Excel</span></div>
+      <div class="ni" onclick="signOut()"><i class="ti ti-logout"></i><span>Sign out</span></div>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="sres" id="sRes"></div>
+    <div class="tab-content active" id="tab-dashboard"><div class="sh"><div><h2 id="dGreet">Good morning</h2><p class="sh-desc" id="dDate"></p></div></div><div class="d-grid" id="dCards"></div><div class="d-sec" id="dOD"></div><div class="d-sec" id="dDN"></div><div class="d-sec" id="dWT"></div></div>
+    <div class="tab-content" id="tab-triage"><div class="sh"><div><h2>Daily triage</h2><p class="sh-desc">Classify by urgency × impact. Start top-left.</p></div><button class="btn btn-primary" onclick="openTM()"><i class="ti ti-plus"></i> Add task</button></div><div class="t-grid"><div class="t-q tq1" id="q-uh"><h3><i class="ti ti-flame"></i> Do now</h3><div class="qi"></div></div><div class="t-q tq2" id="q-ul"><h3><i class="ti ti-arrow-forward-up"></i> Delegate</h3><div class="qi"></div></div><div class="t-q tq3" id="q-nh"><h3><i class="ti ti-calendar-event"></i> Schedule</h3><div class="qi"></div></div><div class="t-q tq4" id="q-nl"><h3><i class="ti ti-clock-pause"></i> Defer</h3><div class="qi"></div></div></div></div>
+    <div class="tab-content" id="tab-lists"><div class="sh"><div><h2>Running lists</h2><p class="sh-desc">Today · This week · Waiting on</p></div><button class="btn btn-primary" onclick="openTM('today')"><i class="ti ti-plus"></i> Add task</button></div><div class="l-grid"><div class="l-col" id="l-today"><div class="l-col-h"><h3><i class="ti ti-sun"></i> Today</h3><span class="l-cnt" id="c-today">0</span></div><div class="lis"></div></div><div class="l-col" id="l-week"><div class="l-col-h"><h3><i class="ti ti-calendar-week"></i> This week</h3><span class="l-cnt" id="c-week">0</span></div><div class="lis"></div></div><div class="l-col" id="l-waiting"><div class="l-col-h"><h3><i class="ti ti-hourglass"></i> Waiting on</h3><span class="l-cnt" id="c-waiting">0</span></div><div class="lis"></div></div></div></div>
+    <div class="tab-content" id="tab-decisions"><div class="sh"><div><h2>Decision log</h2><p class="sh-desc">Record the what, why, and who.</p></div><button class="btn btn-primary" onclick="openDM()"><i class="ti ti-plus"></i> Log decision</button></div><div class="dec-list" id="decL"></div></div>
+    <div class="tab-content" id="tab-review"><div class="sh"><div><h2>Weekly review</h2><p class="sh-desc">Every Friday — clear the decks.</p></div></div><div class="rev-c">
+      <div class="rev-nav"><button class="btn btn-ghost btn-sm" onclick="cRW(-1)"><i class="ti ti-chevron-left"></i></button><h3><i class="ti ti-calendar-stats"></i> <span id="rLbl"></span></h3><button class="btn btn-ghost btn-sm" onclick="cRW(1)"><i class="ti ti-chevron-right"></i></button></div>
+      <div class="rev-score" id="revScore"><div class="rev-ring"><svg viewBox="0 0 80 80"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fg" id="ringFg" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"/></svg><div class="rev-ring-pct" id="ringPct">0%</div></div><div class="rev-score-info"><div class="rev-status" id="revStatus">Not started</div><div class="rev-sub" id="revSub">0 of 10 items completed</div></div></div>
+      <div class="rev-celebrate" id="revCel"><i class="ti ti-trophy"></i><div class="rev-cel-t">Week complete!</div><div class="rev-cel-s">All review items done. Enjoy your weekend.</div></div>
+      <div id="rList"></div>
+      <div class="rv-bar"><div class="rv-fill" id="rFill"></div></div>
+      <p style="font-size:12px;color:var(--text-3);margin-top:6px" id="rTxt"></p>
+    </div></div>
+    <div class="tab-content" id="tab-stakeholders"><div class="sh"><div><h2>Stakeholders</h2><p class="sh-desc">Click a person to see everything linked.</p></div><button class="btn btn-primary" onclick="openSM()"><i class="ti ti-plus"></i> Add</button></div><div id="stkDet" style="display:none"></div><div class="stk-grid" id="stkG"></div></div>
+  </div>
+  <button class="fab" onclick="openTM()" title="Quick add"><i class="ti ti-plus"></i></button>
+</div>
+
+<!-- Task Modal -->
+<div class="mo" id="tMo"><div class="modal">
+  <h3 id="tMoT"><i class="ti ti-checkbox"></i> Add task</h3><input type="hidden" id="tId">
+  <div class="fg"><label><i class="ti ti-text-caption"></i> Title</label><input type="text" id="tTi" placeholder="e.g. Prepare headcount report"></div>
+  <div class="fg"><label><i class="ti ti-notes"></i> Description</label><textarea id="tDe" placeholder="Context or details"></textarea></div>
+  <div class="fr"><div class="fg"><label><i class="ti ti-alert-triangle"></i> Urgency</label><select id="tUr"><option value="urgent">Urgent</option><option value="not-urgent">Not urgent</option></select></div><div class="fg"><label><i class="ti ti-trending-up"></i> Impact</label><select id="tIm"><option value="high">High</option><option value="low">Low</option></select></div></div>
+  <div class="fr"><div class="fg"><label><i class="ti ti-list"></i> List</label><select id="tLi"><option value="today">Today</option><option value="week">This week</option><option value="waiting">Waiting on</option></select></div><div class="fg"><label><i class="ti ti-calendar"></i> Due date</label><input type="date" id="tDu"></div></div>
+  <div class="fr"><div class="fg"><label><i class="ti ti-repeat"></i> Recurrence</label><select id="tRe"><option value="none">None</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><div class="fg"><label><i class="ti ti-users"></i> Stakeholders</label><select id="tSt" multiple style="min-height:58px"></select></div></div>
+  <div id="tNo" style="display:none"><div class="notes-sec"><h4><i class="ti ti-note"></i> Notes</h4><div id="tNoL"></div><div class="note-add"><input type="text" id="tNoI" placeholder="Add a note..."><button class="btn btn-ghost btn-sm" onclick="addNote()"><i class="ti ti-plus" style="font-size:14px"></i> Add</button></div></div></div>
+  <div class="fa"><button class="btn btn-danger btn-sm" id="tDel" style="display:none;margin-right:auto" onclick="delTask()"><i class="ti ti-trash" style="font-size:14px"></i> Delete</button><button class="btn btn-ghost" onclick="closeM('tMo')">Cancel</button><button class="btn btn-primary" onclick="saveT()"><i class="ti ti-check" style="font-size:15px"></i> Save</button></div>
+</div></div>
+
+<!-- Decision Modal -->
+<div class="mo" id="dMo"><div class="modal">
+  <h3><i class="ti ti-gavel"></i> Log decision</h3><input type="hidden" id="dId">
+  <div class="fg"><label><i class="ti ti-message-question"></i> Issue / topic</label><input type="text" id="dIs" placeholder="e.g. Transfer request from Plant 3"></div>
+  <div class="fg"><label><i class="ti ti-check"></i> Decision taken</label><textarea id="dDe" placeholder="What was decided?"></textarea></div>
+  <div class="fg"><label><i class="ti ti-bulb"></i> Rationale</label><textarea id="dRa" placeholder="Why?"></textarea></div>
+  <div class="fg"><label><i class="ti ti-users"></i> Stakeholders</label><select id="dSt" multiple style="min-height:68px"></select></div>
+  <div class="fa"><button class="btn btn-ghost" onclick="closeM('dMo')">Cancel</button><button class="btn btn-primary" onclick="saveD()"><i class="ti ti-check" style="font-size:15px"></i> Save</button></div>
+</div></div>
+
+<!-- Stakeholder Modal -->
+<div class="mo" id="sMo"><div class="modal">
+  <h3 id="sMoT"><i class="ti ti-user-plus"></i> Add stakeholder</h3><input type="hidden" id="sId">
+  <div class="fg"><label><i class="ti ti-user"></i> Name</label><input type="text" id="sNa" placeholder="e.g. Rajesh Sharma"></div>
+  <div class="fg"><label><i class="ti ti-briefcase"></i> Role</label><input type="text" id="sRo" placeholder="e.g. Plant Head - HRC"></div>
+  <div class="fg"><label><i class="ti ti-building"></i> Department</label><input type="text" id="sDe" placeholder="e.g. Operations"></div>
+  <div class="fg"><label><i class="ti ti-phone"></i> Contact</label><input type="text" id="sCo" placeholder="Phone or email"></div>
+  <div class="fa"><button class="btn btn-ghost" onclick="closeM('sMo')">Cancel</button><button class="btn btn-primary" onclick="saveS()"><i class="ti ti-check" style="font-size:15px"></i> Save</button></div>
+</div></div>
+
+<!-- Export Modal -->
+<div class="mo" id="exMo"><div class="modal" style="max-width:480px">
+  <h3><i class="ti ti-file-spreadsheet"></i> Export to Excel</h3>
+  <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">Export your tasks, decisions, and stakeholders as an Excel file.</p>
+  <div class="exp-opts">
+    <div class="exp-opt" onclick="doExport('week')"><i class="ti ti-calendar-week"></i><div><div class="exp-t">This week</div><div class="exp-s">Current week's data</div></div></div>
+    <div class="exp-opt" onclick="doExport('month')"><i class="ti ti-calendar-month"></i><div><div class="exp-t">This month</div><div class="exp-s">Current month's data</div></div></div>
+    <div class="exp-opt" id="expCustomBtn" onclick="document.getElementById('expCustom').classList.toggle('active')"><i class="ti ti-calendar-search"></i><div><div class="exp-t">Custom duration</div><div class="exp-s">Pick a date range</div></div></div>
+    <div class="exp-custom" id="expCustom">
+      <div class="fr"><div class="fg"><label><i class="ti ti-calendar"></i> From</label><input type="date" id="expFrom"></div><div class="fg"><label><i class="ti ti-calendar"></i> To</label><input type="date" id="expTo"></div></div>
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="doExport('custom')"><i class="ti ti-download" style="font-size:14px"></i> Export range</button>
+    </div>
+    <div class="exp-opt" onclick="doExport('ytd')"><i class="ti ti-calendar-stats"></i><div><div class="exp-t">Year to date</div><div class="exp-s">Jan 1 to today</div></div></div>
+  </div>
+  <div class="fa"><button class="btn btn-ghost" onclick="closeM('exMo')">Close</button></div>
+</div></div>
+
+<script>
+const FC={apiKey:"AIzaSyAkxKdxXqg7BblXI2aoHDANL6-XcuYXx8I",authDomain:"tracker-d4753.firebaseapp.com",projectId:"tracker-d4753",storageBucket:"tracker-d4753.firebasestorage.app",messagingSenderId:"8514001547",appId:"1:8514001547:web:e17c3034f5fa399874928e"};
+let db,auth,U,T=[],D=[],S=[],rO=0;
+firebase.initializeApp(FC);db=firebase.firestore();auth=firebase.auth();
+auth.onAuthStateChanged(u=>{if(u){U=u;document.getElementById('authScreen').style.display='none';document.getElementById('app').classList.add('active');document.getElementById('sUsr').textContent=u.displayName||u.email;loadAll()}else{document.getElementById('authScreen').style.display='flex';document.getElementById('app').classList.remove('active')}});
+let isSignUp=false;
+function toggleAuthMode(){
+  isSignUp=!isSignUp;
+  document.getElementById('authSub').textContent=isSignUp?'Create your account':'Sign in to continue';
+  document.getElementById('authBtnText').textContent=isSignUp?'Create account':'Sign in';
+  document.getElementById('authBtn').querySelector('i').className=isSignUp?'ti ti-user-plus':'ti ti-login';
+  document.getElementById('authToggleText').textContent=isSignUp?'Already have an account?':'Don\'t have an account?';
+  document.getElementById('authToggleLink').textContent=isSignUp?'Sign in':'Create one';
+  document.getElementById('authErr').style.display='none';
+}
+async function doAuth(){
+  const email=document.getElementById('authEmail').value.trim();
+  const pass=document.getElementById('authPass').value;
+  const errEl=document.getElementById('authErr');
+  const btn=document.getElementById('authBtn');
+  errEl.style.display='none';
+  if(!email||!pass){errEl.textContent='Please enter both email and password';errEl.style.display='block';return}
+  if(pass.length<6){errEl.textContent='Password must be at least 6 characters';errEl.style.display='block';return}
+  // Loading state
+  btn.disabled=true;
+  document.getElementById('authBtnText').textContent=isSignUp?'Creating account...':'Signing in...';
+  try{
+    if(isSignUp){await auth.createUserWithEmailAndPassword(email,pass)}
+    else{await auth.signInWithEmailAndPassword(email,pass)}
+  }catch(e){
+    console.error('Auth error:',e.code,e.message);
+    let msg='Something went wrong. Check console for details.';
+    if(e.code==='auth/user-not-found'||e.code==='auth/invalid-credential')msg='No account found or wrong password. Click "Create one" to sign up.';
+    else if(e.code==='auth/wrong-password')msg='Incorrect password. Try again.';
+    else if(e.code==='auth/email-already-in-use')msg='This email already has an account. Try signing in instead.';
+    else if(e.code==='auth/invalid-email')msg='Please enter a valid email address.';
+    else if(e.code==='auth/weak-password')msg='Password must be at least 6 characters.';
+    else if(e.code==='auth/operation-not-allowed')msg='Email/Password sign-in is not enabled. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.';
+    else if(e.code==='auth/network-request-failed')msg='Network error. Check your internet connection.';
+    else if(e.code==='auth/too-many-requests')msg='Too many attempts. Wait a moment and try again.';
+    else msg=e.code+': '+e.message;
+    errEl.textContent=msg;errEl.style.display='block';
+    btn.disabled=false;
+    document.getElementById('authBtnText').textContent=isSignUp?'Create account':'Sign in';
+  }
+}
+function signOut(){auth.signOut()}
+const uc=c=>db.collection('users').doc(U.uid).collection(c);
+const fa=async(c,d)=>{const r=await uc(c).add({...d,createdAt:firebase.firestore.FieldValue.serverTimestamp()});return r.id};
+const fu=async(c,i,d)=>await uc(c).doc(i).update(d);
+const fd=async(c,i)=>await uc(c).doc(i).delete();
+const fg=async c=>{const s=await uc(c).orderBy('createdAt','desc').get();return s.docs.map(d=>({id:d.id,...d.data()}))};
+async function loadAll(){try{[T,D,S]=await Promise.all([fg('tasks'),fg('decisions'),fg('stakeholders')]);genRec()}catch(e){console.warn(e)}renderAll()}
+function renderAll(){rDash();rTriage();rLists();rDec();rRev();rStk();popSS()}
+const esc=s=>{if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML};
+const sn=id=>{const s=S.find(x=>x.id===id);return s?s.name:'?'};
+const isOD=t=>t.dueDate&&!t.done&&t.dueDate<new Date().toISOString().split('T')[0];
+const td=()=>new Date().toISOString().split('T')[0];
+const fD=d=>{if(!d)return'';return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})};
+function switchTab(t){document.querySelectorAll('.ni').forEach(n=>n.classList.toggle('active',n.dataset.tab===t));document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id==='tab-'+t));document.querySelector('.sidebar').classList.remove('open')}
+function closeM(id){document.getElementById(id).classList.remove('active')}
+document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('active')}));
+
+// Search
+function handleSearch(q){const b=document.getElementById('sRes');if(!q||q.length<2){b.classList.remove('active');return}const ql=q.toLowerCase();let r=[];
+T.forEach(t=>{if((t.title||'').toLowerCase().includes(ql)||(t.description||'').toLowerCase().includes(ql))r.push({type:'task',icon:'ti-checkbox',title:t.title,meta:t.list+(t.dueDate?' · '+fD(t.dueDate):''),fn:`editT('${t.id}')`})});
+D.forEach(d=>{if((d.issue||'').toLowerCase().includes(ql)||(d.decision||'').toLowerCase().includes(ql))r.push({type:'decision',icon:'ti-gavel',title:d.issue,meta:d.date||'',fn:`switchTab('decisions')`})});
+S.forEach(s=>{if((s.name||'').toLowerCase().includes(ql)||(s.role||'').toLowerCase().includes(ql))r.push({type:'stakeholder',icon:'ti-user',title:s.name,meta:[s.role,s.department].filter(Boolean).join(' · '),fn:`showSD('${s.id}')`})});
+b.innerHTML=r.length?r.slice(0,10).map(x=>`<div class="sri" onclick="${x.fn};document.getElementById('sRes').classList.remove('active');document.getElementById('gSearch').value=''"><div class="sri-icon ${x.type}"><i class="ti ${x.icon}"></i></div><div class="sri-body"><div class="sri-title">${esc(x.title)}</div><div class="sri-meta">${esc(x.meta)}</div></div></div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--text-3);font-size:13px"><i class="ti ti-search-off" style="font-size:20px;display:block;margin-bottom:6px"></i>No results</div>';
+b.classList.add('active')}
+document.addEventListener('click',e=>{if(!e.target.closest('.sb-search')&&!e.target.closest('.sres'))document.getElementById('sRes').classList.remove('active')});
+
+// Dashboard
+function rDash(){const a=T.filter(t=>!t.done),od=a.filter(isOD),dn=a.filter(t=>t.urgency==='urgent'&&t.impact==='high'),tl=a.filter(t=>t.list==='today');
+const wo=a.filter(t=>{if(t.list!=='waiting'||!t.createdAt)return false;const c=t.createdAt.toDate?t.createdAt.toDate():new Date(t.createdAt);return(Date.now()-c.getTime())>3*864e5});
+const h=new Date().getHours();document.getElementById('dGreet').textContent=(h<12?'Good morning':h<17?'Good afternoon':'Good evening');
+document.getElementById('dDate').textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+document.getElementById('dCards').innerHTML=`<div class="d-card"><div class="d-icon red"><i class="ti ti-alert-circle"></i></div><div class="d-info"><div class="num" style="color:var(--red)">${od.length}</div><div class="lbl">Overdue</div></div></div><div class="d-card"><div class="d-icon cyan"><i class="ti ti-sun"></i></div><div class="d-info"><div class="num" style="color:var(--cyan)">${tl.length}</div><div class="lbl">Today</div></div></div><div class="d-card"><div class="d-icon amber"><i class="ti ti-flame"></i></div><div class="d-info"><div class="num" style="color:var(--amber)">${dn.length}</div><div class="lbl">Do now</div></div></div><div class="d-card"><div class="d-icon green"><i class="ti ti-activity"></i></div><div class="d-info"><div class="num" style="color:var(--green)">${a.length}</div><div class="lbl">Active</div></div></div>`;
+document.getElementById('dOD').innerHTML=od.length?`<h3><i class="ti ti-alert-circle" style="color:var(--red)"></i> Overdue</h3>${od.map(t=>`<div class="d-item od" onclick="editT('${t.id}')"><div><div class="d-item-t">${esc(t.title)}</div><div class="d-item-s">${(t.stakeholders||[]).map(sn).join(', ')}</div></div><span class="badge badge-od"><i class="ti ti-clock-exclamation"></i> ${fD(t.dueDate)}</span></div>`).join('')}`:'';
+document.getElementById('dDN').innerHTML=dn.length?`<h3><i class="ti ti-flame" style="color:var(--amber)"></i> Do now</h3>${dn.slice(0,5).map(t=>`<div class="d-item" onclick="editT('${t.id}')"><div class="d-item-t">${esc(t.title)}</div><span style="font-size:11px;color:var(--text-3)">${t.dueDate?fD(t.dueDate):t.list}</span></div>`).join('')}`:`<div class="d-empty"><i class="ti ti-mood-happy" style="font-size:18px"></i> No urgent + high impact tasks</div>`;
+document.getElementById('dWT').innerHTML=wo.length?`<h3><i class="ti ti-hourglass" style="color:var(--amber)"></i> Waiting on (3+ days)</h3>${wo.map(t=>`<div class="d-item wt" onclick="editT('${t.id}')"><div><div class="d-item-t">${esc(t.title)}</div><div class="d-item-s">${(t.stakeholders||[]).map(sn).join(', ')}</div></div></div>`).join('')}`:'';}
+
+// Tasks
+function openTM(dl){document.getElementById('tId').value='';document.getElementById('tTi').value='';document.getElementById('tDe').value='';document.getElementById('tUr').value='urgent';document.getElementById('tIm').value='high';document.getElementById('tLi').value=dl||'today';document.getElementById('tDu').value='';document.getElementById('tRe').value='none';document.getElementById('tMoT').innerHTML='<i class="ti ti-checkbox"></i> Add task';document.getElementById('tDel').style.display='none';document.getElementById('tNo').style.display='none';popSS();Array.from(document.getElementById('tSt').options).forEach(o=>o.selected=false);document.getElementById('tMo').classList.add('active');setTimeout(()=>document.getElementById('tTi').focus(),100)}
+function editT(id){const t=T.find(x=>x.id===id);if(!t)return;document.getElementById('tId').value=id;document.getElementById('tTi').value=t.title||'';document.getElementById('tDe').value=t.description||'';document.getElementById('tUr').value=t.urgency||'urgent';document.getElementById('tIm').value=t.impact||'high';document.getElementById('tLi').value=t.list||'today';document.getElementById('tDu').value=t.dueDate||'';document.getElementById('tRe').value=t.recurrence||'none';document.getElementById('tMoT').innerHTML='<i class="ti ti-edit"></i> Edit task';document.getElementById('tDel').style.display='inline-flex';popSS();Array.from(document.getElementById('tSt').options).forEach(o=>o.selected=(t.stakeholders||[]).includes(o.value));document.getElementById('tNo').style.display='block';rNotes(t);document.getElementById('tMo').classList.add('active')}
+function rNotes(t){const n=t.notes||[];document.getElementById('tNoL').innerHTML=n.length?n.map(x=>`<div class="note-i"><div class="nd"><i class="ti ti-clock"></i> ${x.date||''}</div><div>${esc(x.text)}</div></div>`).join(''):'<div style="font-size:12px;color:var(--text-3);padding:4px 0">No notes yet</div>'}
+async function addNote(){const id=document.getElementById('tId').value,inp=document.getElementById('tNoI'),txt=inp.value.trim();if(!txt||!id)return;const t=T.find(x=>x.id===id);if(!t)return;if(!t.notes)t.notes=[];t.notes.push({text:txt,date:new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})});await fu('tasks',id,{notes:t.notes});inp.value='';rNotes(t)}
+async function saveT(){const title=document.getElementById('tTi').value.trim();if(!title){alert('Title required');return}const sids=Array.from(document.getElementById('tSt').selectedOptions).map(o=>o.value);const d={title,description:document.getElementById('tDe').value.trim(),urgency:document.getElementById('tUr').value,impact:document.getElementById('tIm').value,list:document.getElementById('tLi').value,stakeholders:sids,dueDate:document.getElementById('tDu').value,recurrence:document.getElementById('tRe').value,done:false};const eid=document.getElementById('tId').value;if(eid){const ex=T.find(t=>t.id===eid);d.notes=ex?ex.notes||[]:[];d.done=ex?ex.done:false;await fu('tasks',eid,d);const i=T.findIndex(t=>t.id===eid);if(i>-1)T[i]={...T[i],...d}}else{d.notes=[];const id=await fa('tasks',d);d.id=id;T.unshift(d)}closeM('tMo');renderAll()}
+async function delTask(){const id=document.getElementById('tId').value;if(!id||!confirm('Delete this task?'))return;await fd('tasks',id);T=T.filter(t=>t.id!==id);closeM('tMo');renderAll()}
+async function togDone(id){const t=T.find(x=>x.id===id);if(!t)return;t.done=!t.done;await fu('tasks',id,{done:t.done});renderAll()}
+async function moveT(id,nl){const t=T.find(x=>x.id===id);if(!t)return;t.list=nl;await fu('tasks',id,{list:nl});rLists()}
+async function genRec(){const tdy=td();for(const t of T.filter(x=>x.recurrence&&x.recurrence!=='none'&&x.done)){let nd='';const l=t.lastRecurrenceDate||t.dueDate||'';const d=l?new Date(l+'T00:00:00'):new Date();if(t.recurrence==='daily'){d.setDate(d.getDate()+1);nd=d.toISOString().split('T')[0]}else if(t.recurrence==='weekly'){d.setDate(d.getDate()+7);nd=d.toISOString().split('T')[0]}else if(t.recurrence==='monthly'){d.setMonth(d.getMonth()+1);nd=d.toISOString().split('T')[0]}if(nd&&nd<=tdy){const n={title:t.title,description:t.description,urgency:t.urgency,impact:t.impact,list:t.list,stakeholders:t.stakeholders||[],dueDate:nd,recurrence:t.recurrence,done:false,notes:[]};const id=await fa('tasks',n);n.id=id;T.unshift(n);await fu('tasks',t.id,{lastRecurrenceDate:nd});t.lastRecurrenceDate=nd}}}
+
+// Triage
+function rTriage(){const qs={'uh':document.querySelector('#q-uh .qi'),'ul':document.querySelector('#q-ul .qi'),'nh':document.querySelector('#q-nh .qi'),'nl':document.querySelector('#q-nl .qi')};Object.values(qs).forEach(q=>q.innerHTML='');
+const a=T.filter(t=>!t.done);a.sort((a,b)=>(isOD(b)?1:0)-(isOD(a)?1:0));
+a.forEach(t=>{const k=(t.urgency==='urgent'?'u':'n')+(t.impact==='high'?'h':'l');const c=qs[k];if(!c)return;const od=isOD(t);const ch=(t.stakeholders||[]).map(s=>`<span class="s-chip"><i class="ti ti-user"></i>${sn(s)}</span>`).join('');
+c.innerHTML+=`<div class="ti ${od?'overdue-row':''}" onclick="editT('${t.id}')"><div class="ti-t">${esc(t.title)} ${od?'<span class="badge badge-od"><i class="ti ti-clock-exclamation"></i> overdue</span>':''} ${t.recurrence&&t.recurrence!=='none'?'<span class="badge badge-cyan"><i class="ti ti-repeat"></i> '+t.recurrence+'</span>':''}</div>${ch?`<div class="ti-chips">${ch}</div>`:''}</div>`});
+Object.values(qs).forEach(el=>{if(!el.innerHTML.trim())el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);font-size:12px"><i class="ti ti-inbox" style="font-size:18px;display:block;margin-bottom:4px"></i>Empty</div>'})}
+
+// Lists
+function rLists(){['today','week','waiting'].forEach(ln=>{const c=document.querySelector(`#l-${ln} .lis`);let items=T.filter(t=>t.list===ln);items.sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;if(isOD(a)!==isOD(b))return isOD(b)?1:-1;return 0});
+document.getElementById(`c-${ln}`).textContent=items.filter(t=>!t.done).length;
+if(!items.length){c.innerHTML='<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px"><i class="ti ti-inbox" style="font-size:18px;display:block;margin-bottom:4px"></i>No tasks</div>';return}
+c.innerHTML=items.map(t=>{const od=isOD(t),ch=(t.stakeholders||[]).map(s=>`<span class="s-chip"><i class="ti ti-user"></i>${sn(s)}</span>`).join(''),nc=(t.notes||[]).length;
+return`<div class="li ${od?'overdue-row':''}"><div class="li-ck ${t.done?'done':''}" onclick="togDone('${t.id}')"></div><div class="li-body" onclick="editT('${t.id}')"><div class="li-t ${t.done?'done':''}">${esc(t.title)}</div><div class="li-m">${od?'<span class="badge badge-od"><i class="ti ti-clock-exclamation"></i> overdue</span>':''}${t.dueDate?'<span><i class="ti ti-calendar" style="font-size:12px"></i> '+fD(t.dueDate)+'</span>':''}${t.recurrence&&t.recurrence!=='none'?'<span><i class="ti ti-repeat" style="font-size:12px"></i></span>':''}${nc?'<span><i class="ti ti-note" style="font-size:12px"></i> '+nc+'</span>':''}${ch}</div></div><div class="li-mv" onclick="event.stopPropagation()"><select onchange="moveT('${t.id}',this.value)"><option value="today" ${t.list==='today'?'selected':''}>Today</option><option value="week" ${t.list==='week'?'selected':''}>Week</option><option value="waiting" ${t.list==='waiting'?'selected':''}>Waiting</option></select></div></div>`}).join('')})}
+
+// Decisions
+function openDM(){document.getElementById('dId').value='';document.getElementById('dIs').value='';document.getElementById('dDe').value='';document.getElementById('dRa').value='';popSS();Array.from(document.getElementById('dSt').options).forEach(o=>o.selected=false);document.getElementById('dMo').classList.add('active');setTimeout(()=>document.getElementById('dIs').focus(),100)}
+async function saveD(){const iss=document.getElementById('dIs').value.trim();if(!iss){alert('Issue required');return}const sids=Array.from(document.getElementById('dSt').selectedOptions).map(o=>o.value);const d={issue:iss,decision:document.getElementById('dDe').value.trim(),rationale:document.getElementById('dRa').value.trim(),stakeholders:sids,date:td()};const eid=document.getElementById('dId').value;if(eid){await fu('decisions',eid,d);const i=D.findIndex(x=>x.id===eid);if(i>-1)D[i]={...D[i],...d}}else{const id=await fa('decisions',d);d.id=id;D.unshift(d)}closeM('dMo');renderAll()}
+async function delDec(id){if(!confirm('Delete?'))return;await fd('decisions',id);D=D.filter(d=>d.id!==id);renderAll()}
+function rDec(){const c=document.getElementById('decL');if(!D.length){c.innerHTML='<div class="empty"><i class="ti ti-clipboard-off"></i><h3>No decisions logged</h3><p style="font-size:12px">Start recording to build your audit trail.</p></div>';return}
+c.innerHTML=D.map(d=>{const ch=(d.stakeholders||[]).map(s=>`<span class="s-chip"><i class="ti ti-user"></i>${sn(s)}</span>`).join('');return`<div class="card dec-c"><div class="dec-h"><span class="dec-iss"><i class="ti ti-gavel"></i> ${esc(d.issue)}</span><span class="dec-dt"><i class="ti ti-calendar" style="font-size:12px"></i> ${fD(d.date)}</span></div><div class="dec-b"><strong>Decision:</strong> ${esc(d.decision||'—')}<br><strong>Rationale:</strong> ${esc(d.rationale||'—')}</div>${ch?`<div class="dec-chips">${ch}</div>`:''}<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="delDec('${d.id}')"><i class="ti ti-trash" style="font-size:13px"></i> Delete</button></div></div>`}).join('')}
+
+// Review
+const RI=["Clear completed tasks from all lists","Move unfinished Today items to This week","Review Waiting on — follow up stale items","Check decision log — anything unresolved?","Identify top 3 priorities for next week","Review upcoming deadlines (next 7 days)","Update stakeholder notes if needed","Flag any escalations for Monday","Clear email inbox","One thing you did well this week"];
+const wk=o=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+1+(o*7));return d.toISOString().split('T')[0]};
+const wkL=o=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+1+(o*7));const s=new Date(d);s.setDate(d.getDate()+6);const f=x=>x.toLocaleDateString('en-IN',{day:'numeric',month:'short'});return`${f(d)} – ${f(s)}`};
+function cRW(dir){rO+=dir;rRev()}
+async function togR(w,i){const k=`review_${w}`;let ch=JSON.parse(localStorage.getItem(k)||'[]');ch=ch.includes(i)?ch.filter(x=>x!==i):[...ch,i];localStorage.setItem(k,JSON.stringify(ch));try{await uc('reviews').doc(w).set({checked:ch},{merge:true})}catch(e){}rRev()}
+async function rRev(){const w=wk(rO);document.getElementById('rLbl').textContent=wkL(rO);let ch=JSON.parse(localStorage.getItem(`review_${w}`)||'[]');try{const d=await uc('reviews').doc(w).get();if(d.exists&&d.data().checked){ch=d.data().checked;localStorage.setItem(`review_${w}`,JSON.stringify(ch))}}catch(e){}
+document.getElementById('rList').innerHTML=RI.map((item,i)=>{const c=ch.includes(i);return`<div class="rv ${c?'checked':''}" onclick="togR('${w}',${i})"><input type="checkbox" ${c?'checked':''} onclick="event.stopPropagation();togR('${w}',${i})"><label>${item}</label></div>`}).join('');
+const done=ch.length,tot=RI.length,pct=Math.round((done/tot)*100);
+// Score ring
+const circ=213.6,offset=circ-(circ*(done/tot));const fg=document.getElementById('ringFg');fg.style.strokeDashoffset=offset;fg.classList.toggle('done',done===tot);
+document.getElementById('ringPct').textContent=pct+'%';
+document.getElementById('revStatus').textContent=done===0?'Not started':done===tot?'All done!':done<=3?'Getting started':'Almost there';
+document.getElementById('revSub').textContent=`${done} of ${tot} items completed`;
+// Progress bar
+document.getElementById('rFill').style.width=`${pct}%`;document.getElementById('rFill').classList.toggle('done',done===tot);
+document.getElementById('rTxt').textContent=`${done} of ${tot} completed`;
+// Celebration
+document.getElementById('revCel').classList.toggle('active',done===tot)}
+
+// Stakeholders
+function openSM(){document.getElementById('sId').value='';document.getElementById('sNa').value='';document.getElementById('sRo').value='';document.getElementById('sDe').value='';document.getElementById('sCo').value='';document.getElementById('sMoT').innerHTML='<i class="ti ti-user-plus"></i> Add stakeholder';document.getElementById('sMo').classList.add('active');setTimeout(()=>document.getElementById('sNa').focus(),100)}
+function editS(id){const s=S.find(x=>x.id===id);if(!s)return;document.getElementById('sId').value=id;document.getElementById('sNa').value=s.name||'';document.getElementById('sRo').value=s.role||'';document.getElementById('sDe').value=s.department||'';document.getElementById('sCo').value=s.contact||'';document.getElementById('sMoT').innerHTML='<i class="ti ti-user-edit"></i> Edit stakeholder';document.getElementById('sMo').classList.add('active')}
+async function saveS(){const name=document.getElementById('sNa').value.trim();if(!name){alert('Name required');return}const d={name,role:document.getElementById('sRo').value.trim(),department:document.getElementById('sDe').value.trim(),contact:document.getElementById('sCo').value.trim()};const eid=document.getElementById('sId').value;if(eid){await fu('stakeholders',eid,d);const i=S.findIndex(s=>s.id===eid);if(i>-1)S[i]={...S[i],...d}}else{const id=await fa('stakeholders',d);d.id=id;S.unshift(d)}closeM('sMo');renderAll()}
+async function delS(id){if(!confirm('Delete?'))return;await fd('stakeholders',id);S=S.filter(s=>s.id!==id);renderAll()}
+function rStk(){const c=document.getElementById('stkG');if(!S.length){c.innerHTML='<div class="empty"><i class="ti ti-users-minus"></i><h3>No stakeholders</h3><p style="font-size:12px">Add people to link them to tasks and decisions.</p></div>';return}
+c.innerHTML=S.map(s=>{const tc=T.filter(t=>(t.stakeholders||[]).includes(s.id)&&!t.done).length,dc=D.filter(d=>(d.stakeholders||[]).includes(s.id)).length;
+return`<div class="card stk-c" onclick="showSD('${s.id}')"><h4><i class="ti ti-user-circle"></i> ${esc(s.name)}</h4><div class="role">${esc(s.role||'—')}</div><div class="dept">${esc(s.department||'')}</div>${s.contact?`<div class="contact"><i class="ti ti-phone"></i> ${esc(s.contact)}</div>`:''}<div class="tcnt"><i class="ti ti-link"></i> ${tc} task${tc!==1?'s':''} · ${dc} decision${dc!==1?'s':''}</div></div>`}).join('')}
+function showSD(id){switchTab('stakeholders');const s=S.find(x=>x.id===id);if(!s)return;const tasks=T.filter(t=>(t.stakeholders||[]).includes(id)),decs=D.filter(d=>(d.stakeholders||[]).includes(id));
+const p=document.getElementById('stkDet');p.style.display='block';
+p.innerHTML=`<div class="stk-det"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><h3><i class="ti ti-user-circle"></i> ${esc(s.name)}</h3><div><button class="btn btn-ghost btn-sm" onclick="editS('${s.id}')"><i class="ti ti-edit" style="font-size:13px"></i> Edit</button> <button class="btn btn-ghost btn-sm" onclick="document.getElementById('stkDet').style.display='none'"><i class="ti ti-x" style="font-size:13px"></i> Close</button></div></div><div style="font-size:13px;color:var(--text-2);margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">${s.role?`<span><i class="ti ti-briefcase" style="font-size:14px"></i> ${esc(s.role)}</span>`:''}${s.department?`<span><i class="ti ti-building" style="font-size:14px"></i> ${esc(s.department)}</span>`:''}${s.contact?`<span style="color:var(--cyan)"><i class="ti ti-phone" style="font-size:14px"></i> ${esc(s.contact)}</span>`:''}</div><div style="margin-bottom:16px"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-checkbox" style="font-size:14px"></i> Tasks (${tasks.length})</div>${tasks.length?tasks.map(t=>`<div class="stk-det-item" onclick="editT('${t.id}')" style="display:flex;justify-content:space-between"><span>${t.done?'<i class="ti ti-check" style="color:var(--green);font-size:14px"></i> ':''}${esc(t.title)}</span><span style="color:var(--text-3);font-size:11px">${t.list}${isOD(t)?' · <span style=color:var(--red)>overdue</span>':''}</span></div>`).join(''):'<div style="font-size:12px;color:var(--text-3)">None</div>'}</div><div><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-gavel" style="font-size:14px"></i> Decisions (${decs.length})</div>${decs.length?decs.map(d=>`<div class="stk-det-item"><strong>${esc(d.issue)}</strong> — ${esc(d.decision||'—')} <span style="color:var(--text-3);font-size:11px">${d.date||''}</span></div>`).join(''):'<div style="font-size:12px;color:var(--text-3)">None</div>'}</div></div>`;p.scrollIntoView({behavior:'smooth'})}
+function popSS(){['tSt','dSt'].forEach(id=>{const s=document.getElementById(id);if(!s)return;const p=Array.from(s.selectedOptions).map(o=>o.value);s.innerHTML=S.map(x=>`<option value="${x.id}" ${p.includes(x.id)?'selected':''}>${esc(x.name)} — ${esc(x.role||'')}</option>`).join('')})}
+
+// ══ Export ══
+function openExport(){document.getElementById('exMo').classList.add('active')}
+function getDateRange(mode){
+  const now=new Date();const y=now.getFullYear();const m=now.getMonth();const d=now.getDate();
+  let from,to=new Date().toISOString().split('T')[0];
+  if(mode==='week'){const mon=new Date(now);mon.setDate(d-now.getDay()+1);from=mon.toISOString().split('T')[0]}
+  else if(mode==='month'){from=`${y}-${String(m+1).padStart(2,'0')}-01`}
+  else if(mode==='ytd'){from=`${y}-01-01`}
+  else if(mode==='custom'){from=document.getElementById('expFrom').value;to=document.getElementById('expTo').value;if(!from||!to){alert('Please select both dates');return null}}
+  return{from,to};
+}
+function getCreatedDate(item){
+  if(!item.createdAt)return'';
+  if(item.createdAt.toDate)return item.createdAt.toDate().toISOString().split('T')[0];
+  if(typeof item.createdAt==='string')return item.createdAt.split('T')[0];
+  return'';
+}
+function filterByDate(items,from,to){
+  return items.filter(item=>{
+    const d=item.date||item.dueDate||getCreatedDate(item);
+    if(!d)return true; // include items without dates
+    return d>=from&&d<=to;
+  });
+}
+function doExport(mode){
+  const range=getDateRange(mode);if(!range)return;
+  const{from,to}=range;
+
+  // Filter data
+  const tasks=filterByDate(T,from,to).map(t=>({
+    Title:t.title||'',Description:t.description||'',Urgency:t.urgency||'',Impact:t.impact||'',
+    List:t.list||'',Status:t.done?'Done':'Active','Due Date':t.dueDate||'',
+    Recurrence:t.recurrence||'none',
+    Stakeholders:(t.stakeholders||[]).map(sn).join(', '),
+    'Notes Count':(t.notes||[]).length,
+    'Latest Note':(t.notes||[]).length?(t.notes[t.notes.length-1].text||''):'',
+    Overdue:isOD(t)?'Yes':'No'
+  }));
+  const decisions=filterByDate(D,from,to).map(d=>({
+    Date:d.date||'',Issue:d.issue||'',Decision:d.decision||'',Rationale:d.rationale||'',
+    Stakeholders:(d.stakeholders||[]).map(sn).join(', ')
+  }));
+  const stakeholders=S.map(s=>{
+    const tc=T.filter(t=>(t.stakeholders||[]).includes(s.id)&&!t.done).length;
+    const dc=D.filter(d=>(d.stakeholders||[]).includes(s.id)).length;
+    return{Name:s.name||'',Role:s.role||'',Department:s.department||'',Contact:s.contact||','Active Tasks':tc,Decisions:dc};
+  });
+
+  // Build workbook
+  const wb=XLSX.utils.book_new();
+  if(tasks.length){const ws=XLSX.utils.json_to_sheet(tasks);ws['!cols']=[{wch:35},{wch:40},{wch:12},{wch:10},{wch:12},{wch:10},{wch:12},{wch:12},{wch:25},{wch:8},{wch:35},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Tasks')}
+  if(decisions.length){const ws=XLSX.utils.json_to_sheet(decisions);ws['!cols']=[{wch:12},{wch:35},{wch:40},{wch:40},{wch:25}];XLSX.utils.book_append_sheet(wb,ws,'Decisions')}
+  if(stakeholders.length){const ws=XLSX.utils.json_to_sheet(stakeholders);ws['!cols']=[{wch:20},{wch:25},{wch:18},{wch:20},{wch:12},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,'Stakeholders')}
+
+  // Summary sheet
+  const summary=[
+    {Metric:'Export Period',Value:`${from} to ${to}`},
+    {Metric:'Total Tasks',Value:tasks.length},
+    {Metric:'Active Tasks',Value:tasks.filter(t=>t.Status==='Active').length},
+    {Metric:'Completed Tasks',Value:tasks.filter(t=>t.Status==='Done').length},
+    {Metric:'Overdue Tasks',Value:tasks.filter(t=>t.Overdue==='Yes').length},
+    {Metric:'Total Decisions',Value:decisions.length},
+    {Metric:'Total Stakeholders',Value:stakeholders.length}
+  ];
+  const ss=XLSX.utils.json_to_sheet(summary);ss['!cols']=[{wch:20},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,ss,'Summary');
+
+  const filename=`Tracker_${mode}_${from}_to_${to}.xlsx`;
+  XLSX.writeFile(wb,filename);
+  closeM('exMo');
+}
+</script>
+</body>
+</html>
